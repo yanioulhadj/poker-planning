@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { useUser } from '@/app/hooks/useUser';
 
 type Tab = 'create' | 'join';
@@ -69,7 +70,7 @@ export default function Home() {
     }
     const currentUser = ensureUser();
     if (!currentUser) return;
-    router.push(`/room/${roomCode.trim()}`);
+    router.push(`/room/${roomCode.trim().toLowerCase()}`);
   };
 
   if (!loaded) {
@@ -108,7 +109,7 @@ export default function Home() {
             />
           </div>
 
-          {/* Google sign-in placeholder */}
+          {/* Google sign-in */}
           <div className="mb-6">
             <div className="relative mb-4">
               <div className="absolute inset-0 flex items-center">
@@ -119,9 +120,8 @@ export default function Home() {
               </div>
             </div>
             <button
-              onClick={() => {
-                setError('Configurez NEXT_PUBLIC_GOOGLE_CLIENT_ID pour activer Google Sign-In');
-              }}
+              type="button"
+              onClick={() => signIn('google', { callbackUrl: '/' })}
               className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:shadow-sm"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
