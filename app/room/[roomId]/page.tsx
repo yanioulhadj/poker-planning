@@ -18,7 +18,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const { user, loaded, loginAsGuest } = useUser();
   const { room, error, loading, vote, reveal, reset, setTicket, joinRoom } = useRoom(roomId, user?.id);
 
-  const [selectedVote, setSelectedVote] = useState<string | null>(null);
+  // Vote en cours d'envoi (affichage optimiste avant confirmation serveur)
+  const [pendingVote, setPendingVote] = useState<string | null>(null);
   const [showIframe, setShowIframe] = useState(false);
   const [copied, setCopied] = useState(false);
   const [guestName, setGuestName] = useState('');
@@ -40,15 +41,21 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
       .catch(() => {});
   }, [roomId]);
 
+  // Le vote affiché vient du serveur : il survit au polling et disparaît au « Nouveau tour »
+  const serverVote = room && user ? room.votes[user.id] : undefined;
+  const selectedVote = pendingVote ?? serverVote ?? null;
+
   useEffect(() => {
-    if (room && !room.revealed) {
-      setSelectedVote(null);
-    }
-  }, [room?.revealed, room]);
+    if (pendingVote !== null && serverVote === pendingVote) setPendingVote(null);
+  }, [pendingVote, serverVote]);
 
   const handleVote = async (value: string) => {
-    setSelectedVote(value);
-    await vote(value);
+    setPendingVote(value);
+    try {
+      await vote(value);
+    } catch {
+      setPendingVote(null);
+    }
   };
 
   const handleCopyLink = () => {
@@ -63,7 +70,9 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     loginAsGuest(guestName.trim());
   };
 
-  if (!loaded || loading) {
+  // Sans utilisateur, useRoom ne charge rien : on n'attend pas la room
+  // pour afficher l'écran « Rejoindre la salle ».
+  if (!loaded || (user && loading)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">
         <div className="text-center">
@@ -264,7 +273,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               <h3 className="mb-4 text-center text-sm font-semibold text-slate-700">
                 {room.revealed ? 'Votes révélés — en attente du prochain tour' : 'Choisissez votre estimation'}
               </h3>
-              <div className="flex flex-wrap items-center justify-center gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-6 pt-6">
                 {VOTING_VALUES.map((value) => (
                   <VotingCard
                     key={value}
