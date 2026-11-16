@@ -84,5 +84,5 @@ export function useRoom(roomId: string, userId: string | undefined) {
     fetchRoom();
   }, [roomId, userId, fetchRoom]);
 
-  return { room, error, loading, vote, reveal, reset, setTicket, joinRoom };
+  return { room, error, loading, vote, reveal, reset, setTicket, joinRoom, refresh: fetchRoom };
 }

@@ -1,4 +1,4 @@
-import { Room, RoomState, Participant, DISCONNECT_THRESHOLD, REMOVE_THRESHOLD } from './types';
+import { Room, RoomState, Participant, JiraConfig, DISCONNECT_THRESHOLD, REMOVE_THRESHOLD } from './types';
 
 // Stocké sur globalThis pour être partagé entre toutes les routes API
 // et survivre au rechargement à chaud en dev (sinon chaque route peut avoir sa propre Map).
@@ -19,6 +19,7 @@ export function createRoom(id: string, name: string, master: Participant): Room 
     currentTicket: null,
     revealed: false,
     createdAt: Date.now(),
+    jiraConfig: null,
   };
   rooms.set(normalizeRoomId(id), room);
   return room;
@@ -81,6 +82,13 @@ export function heartbeat(roomId: string, userId: string): void {
   room.participants[userId].connected = true;
 }
 
+export function setJiraConfig(roomId: string, userId: string, config: JiraConfig | null): boolean {
+  const room = rooms.get(normalizeRoomId(roomId));
+  if (!room || room.masterId !== userId) return false;
+  room.jiraConfig = config;
+  return true;
+}
+
 export function getRoomState(roomId: string, requestingUserId?: string): RoomState | undefined {
   const normId = normalizeRoomId(roomId);
   const room = rooms.get(normId);
@@ -120,6 +128,14 @@ export function getRoomState(roomId: string, requestingUserId?: string): RoomSta
     votes,
     currentTicket: room.currentTicket,
     revealed: room.revealed,
+    jira: room.jiraConfig
+      ? {
+          baseUrl: room.jiraConfig.baseUrl,
+          email: room.jiraConfig.email,
+          storyPointsField: room.jiraConfig.storyPointsField,
+          storyPointsFieldName: room.jiraConfig.storyPointsFieldName,
+        }
+      : null,
   };
 }
 

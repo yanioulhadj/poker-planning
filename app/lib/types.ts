@@ -16,6 +16,24 @@ export interface Ticket {
   title: string;
 }
 
+export interface JiraConfig {
+  baseUrl: string;
+  email: string;
+  apiToken: string;
+  /** Identifiant technique du champ (ex : customfield_10028) */
+  storyPointsField: string;
+  /** Nom affiché dans Jira (ex : Story Points) */
+  storyPointsFieldName?: string;
+}
+
+/** Infos Jira exposées aux clients (jamais le token). */
+export interface JiraPublicInfo {
+  baseUrl: string;
+  email: string;
+  storyPointsField: string;
+  storyPointsFieldName?: string;
+}
+
 export interface Room {
   id: string;
   name: string;
@@ -25,6 +43,7 @@ export interface Room {
   currentTicket: Ticket | null;
   revealed: boolean;
   createdAt: number;
+  jiraConfig: JiraConfig | null;
 }
 
 export interface RoomState {
@@ -35,6 +54,7 @@ export interface RoomState {
   votes: Record<string, string>;
   currentTicket: Ticket | null;
   revealed: boolean;
+  jira: JiraPublicInfo | null;
 }
 
 export const VOTING_VALUES = ['0', '1', '2', '3', '5', '8', '13', '21', '34', '?', '☕'];

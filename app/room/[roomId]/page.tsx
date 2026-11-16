@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useRef, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useUser } from '@/app/hooks/useUser';
@@ -11,12 +11,13 @@ import ParticipantCard from '@/app/components/ParticipantCard';
 import TicketPanel from '@/app/components/TicketPanel';
 import VoteResults from '@/app/components/VoteResults';
 import Avatar from '@/app/components/Avatar';
+import JiraSettings, { loadStoredJiraConfig } from '@/app/components/JiraSettings';
 
 export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
   const router = useRouter();
   const { user, loaded, loginAsGuest } = useUser();
-  const { room, error, loading, vote, reveal, reset, setTicket, joinRoom } = useRoom(roomId, user?.id);
+  const { room, error, loading, vote, reveal, reset, setTicket, joinRoom, refresh } = useRoom(roomId, user?.id);
 
   // Vote en cours d'envoi (affichage optimiste avant confirmation serveur)
   const [pendingVote, setPendingVote] = useState<string | null>(null);
@@ -24,7 +25,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [copied, setCopied] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [joining, setJoining] = useState(false);
-  const [jiraConfigured, setJiraConfigured] = useState(false);
+  const [showJiraSettings, setShowJiraSettings] = useState(false);
+  const jiraAutoConfigured = useRef(false);
 
   const isMaster = room?.masterId === user?.id;
 
@@ -34,12 +36,20 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, user?.id, room?.id]);
 
+  // Maître : réutilise automatiquement la config Jira mémorisée dans ce navigateur
   useEffect(() => {
-    fetch(`/api/rooms/${roomId}/sync-jira`)
-      .then((r) => r.json())
-      .then((d) => setJiraConfigured(d.configured))
+    if (!isMaster || !room || room.jira || !user || jiraAutoConfigured.current) return;
+    jiraAutoConfigured.current = true;
+    const stored = loadStoredJiraConfig();
+    if (!stored) return;
+    fetch(`/api/rooms/${roomId}/jira`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, ...stored }),
+    })
+      .then(() => refresh())
       .catch(() => {});
-  }, [roomId]);
+  }, [isMaster, room, user, roomId, refresh]);
 
   // Le vote affiché vient du serveur : il survit au polling et disparaît au « Nouveau tour »
   const serverVote = room && user ? room.votes[user.id] : undefined;
@@ -186,6 +196,19 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           </div>
 
           <div className="flex items-center gap-2">
+            {isMaster && (
+              <button
+                onClick={() => setShowJiraSettings(true)}
+                className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                  room.jira
+                    ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+                title={room.jira ? `Connecté à ${room.jira.baseUrl}` : 'Configurer Jira'}
+              >
+                {room.jira ? '✓ Jira' : '⚙️ Jira'}
+              </button>
+            )}
             <button
               onClick={handleCopyLink}
               className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
@@ -295,7 +318,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 hasTicket={!!room.currentTicket}
                 roomId={roomId}
                 userId={user.id}
-                jiraConfigured={jiraConfigured}
+                jiraConfigured={!!room.jira}
+                onConfigureJira={() => setShowJiraSettings(true)}
               />
             )}
           </div>
@@ -341,6 +365,15 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           </div>
         </div>
       </main>
+      {showJiraSettings && isMaster && (
+        <JiraSettings
+          roomId={roomId}
+          userId={user.id}
+          current={room.jira}
+          onClose={() => setShowJiraSettings(false)}
+          onSaved={refresh}
+        />
+      )}
     </div>
   );
 }
