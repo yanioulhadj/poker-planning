@@ -10,6 +10,7 @@ interface VoteResultsProps {
   roomId: string;
   userId: string;
   jiraConfigured: boolean;
+  onConfigureJira?: () => void;
 }
 
 export default function VoteResults({
@@ -20,6 +21,7 @@ export default function VoteResults({
   roomId,
   userId,
   jiraConfigured,
+  onConfigureJira,
 }: VoteResultsProps) {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -127,9 +129,12 @@ export default function VoteResults({
               {syncing ? 'Envoi en cours...' : `Envoyer ${consensusValue} pts sur Jira`}
             </button>
           ) : !jiraConfigured ? (
-            <p className="text-center text-xs text-slate-400 italic">
-              Jira non configuré — ajoutez les variables d&apos;environnement JIRA_*
-            </p>
+            <button
+              onClick={onConfigureJira}
+              className="w-full cursor-pointer rounded-lg border border-dashed border-slate-300 px-4 py-2 text-xs font-medium text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+            >
+              Configurer Jira pour envoyer les story points
+            </button>
           ) : !consensus ? (
             <div className="space-y-2">
               <p className="text-center text-xs text-slate-500">Pas de consensus. Envoyer manuellement :</p>
