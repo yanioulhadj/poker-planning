@@ -1,21 +1,13 @@
 'use client';
 
 import { Participant } from '@/app/lib/types';
+import Avatar from '@/app/components/Avatar';
 
 interface ParticipantCardProps {
   participant: Participant;
   vote: string | undefined;
   revealed: boolean;
   isMaster: boolean;
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 export default function ParticipantCard({ participant, vote, revealed, isMaster }: ParticipantCardProps) {
@@ -42,17 +34,11 @@ export default function ParticipantCard({ participant, vote, revealed, isMaster 
 
       {/* Avatar + Name */}
       <div className="flex flex-col items-center gap-0.5">
-        {participant.avatar ? (
-          <img
-            src={participant.avatar}
-            alt={participant.name}
-            className="h-6 w-6 rounded-full"
-          />
-        ) : (
-          <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${isMaster ? 'bg-amber-500' : 'bg-indigo-500'}`}>
-            {getInitials(participant.name)}
-          </div>
-        )}
+        <Avatar
+          name={participant.name}
+          src={participant.avatar}
+          fallbackClassName={isMaster ? 'bg-amber-500' : 'bg-indigo-500'}
+        />
         <span className={`max-w-[72px] truncate text-xs ${!participant.connected ? 'text-slate-400' : 'text-slate-600'}`}>
           {participant.name}
         </span>
