@@ -170,27 +170,24 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
   if (!room) return null;
 
-  const participantNames: Record<string, string> = {};
-  room.participants.forEach((p) => { participantNames[p.id] = p.name; });
-
   const votingParticipants = room.participants.filter((p) => p.role === 'dev' || p.id === room.masterId);
   const totalVoters = votingParticipants.length;
   const totalVotes = Object.keys(room.votes).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-indigo-50 via-white to-purple-50 lg:h-screen lg:overflow-hidden">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
+      <header className="z-10 shrink-0 border-b border-slate-200 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
+          <div className="flex min-w-0 items-center gap-2">
             <button
               onClick={() => router.push('/')}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             >
               ←
             </button>
-            <div>
-              <h1 className="text-sm font-bold text-slate-800">{room.name}</h1>
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-bold text-slate-800">{room.name}</h1>
               <p className="text-xs text-slate-400">{room.participants.length} participant{room.participants.length > 1 ? 's' : ''}</p>
             </div>
           </div>
@@ -199,7 +196,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
             {isMaster && (
               <button
                 onClick={() => setShowJiraSettings(true)}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                   room.jira
                     ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -211,11 +208,11 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
             )}
             <button
               onClick={handleCopyLink}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
             >
               {copied ? '✓ Copié !' : '🔗 Partager'}
             </button>
-            <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
+            <div className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 sm:flex">
               <Avatar name={user.name} src={user.avatar} className="h-5 w-5 text-[8px]" />
               {user.name}
               {isMaster && <span className="font-medium text-amber-600">(Maître)</span>}
@@ -224,10 +221,10 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl p-4">
-        <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      <main className="mx-auto w-full max-w-6xl flex-1 p-4 lg:min-h-0">
+        <div className="grid gap-4 lg:h-full lg:grid-cols-[1fr_280px]">
           {/* Main area */}
-          <div className="space-y-6">
+          <div className="flex flex-col gap-4 lg:min-h-0">
             {/* Ticket Panel (mobile) */}
             <div className="lg:hidden">
               <TicketPanel
@@ -240,26 +237,44 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
             </div>
 
             {/* Voting table */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              {/* Status */}
-              <div className="mb-6 text-center">
+            <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:min-h-0 lg:flex-1">
+              {/* Status + master controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 {room.revealed ? (
-                  <div className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-4 py-1.5 text-sm font-medium text-indigo-700">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
                     Votes révélés
                   </div>
                 ) : totalVotes > 0 ? (
-                  <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-4 py-1.5 text-sm font-medium text-amber-700">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
                     {totalVotes}/{totalVoters} ont voté
                   </div>
                 ) : (
-                  <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-500">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
                     En attente des votes...
+                  </div>
+                )}
+
+                {isMaster && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={reveal}
+                      disabled={room.revealed || totalVotes === 0}
+                      className="cursor-pointer rounded-lg bg-indigo-500 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-indigo-500/30 transition hover:bg-indigo-600 disabled:opacity-40 disabled:shadow-none"
+                    >
+                      Révéler les votes
+                    </button>
+                    <button
+                      onClick={reset}
+                      className="cursor-pointer rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                    >
+                      Nouveau tour
+                    </button>
                   </div>
                 )}
               </div>
 
               {/* Participants */}
-              <div className="mb-6 flex flex-wrap items-end justify-center gap-4">
+              <div className="flex flex-1 flex-wrap content-center items-start justify-center gap-4 overflow-y-auto py-4">
                 {room.participants.map((p) => (
                   <ParticipantCard
                     key={p.id}
@@ -270,62 +285,43 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                   />
                 ))}
               </div>
+            </div>
 
-              {/* Master controls */}
-              {isMaster && (
-                <div className="flex justify-center gap-3 border-t border-slate-100 pt-4">
-                  <button
-                    onClick={reveal}
-                    disabled={room.revealed || totalVotes === 0}
-                    className="cursor-pointer rounded-xl bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:bg-indigo-600 disabled:opacity-40 disabled:shadow-none"
-                  >
-                    Révéler les votes
-                  </button>
-                  <button
-                    onClick={reset}
-                    className="cursor-pointer rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-                  >
-                    Nouveau tour
-                  </button>
-                </div>
+            {/* Bottom panel: deck while voting, results once revealed */}
+            <div className="shrink-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              {room.revealed && Object.keys(room.votes).length > 0 ? (
+                <VoteResults
+                  votes={room.votes}
+                  isMaster={isMaster}
+                  hasTicket={!!room.currentTicket}
+                  roomId={roomId}
+                  userId={user.id}
+                  jiraConfigured={!!room.jira}
+                  onConfigureJira={() => setShowJiraSettings(true)}
+                />
+              ) : (
+                <>
+                  <h3 className="mb-2 text-center text-sm font-semibold text-slate-700">
+                    {room.revealed ? 'Votes révélés — en attente du prochain tour' : 'Choisissez votre estimation'}
+                  </h3>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-4">
+                    {VOTING_VALUES.map((value) => (
+                      <VotingCard
+                        key={value}
+                        value={value}
+                        selected={selectedVote === value}
+                        disabled={room.revealed}
+                        onClick={handleVote}
+                      />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
-
-            {/* Voting cards */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-center text-sm font-semibold text-slate-700">
-                {room.revealed ? 'Votes révélés — en attente du prochain tour' : 'Choisissez votre estimation'}
-              </h3>
-              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-6 pt-6">
-                {VOTING_VALUES.map((value) => (
-                  <VotingCard
-                    key={value}
-                    value={value}
-                    selected={selectedVote === value}
-                    disabled={room.revealed}
-                    onClick={handleVote}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Vote Results (when revealed) */}
-            {room.revealed && Object.keys(room.votes).length > 0 && (
-              <VoteResults
-                votes={room.votes}
-                participantNames={participantNames}
-                isMaster={isMaster}
-                hasTicket={!!room.currentTicket}
-                roomId={roomId}
-                userId={user.id}
-                jiraConfigured={!!room.jira}
-                onConfigureJira={() => setShowJiraSettings(true)}
-              />
-            )}
           </div>
 
           {/* Sidebar (desktop) */}
-          <div className="hidden space-y-4 lg:block">
+          <div className="hidden min-h-0 flex-col gap-4 overflow-y-auto lg:flex">
             <TicketPanel
               ticket={room.currentTicket}
               isMaster={isMaster}
@@ -342,7 +338,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               <div className="space-y-2">
                 {room.participants.map((p) => (
                   <div key={p.id} className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${p.connected ? 'bg-emerald-400' : 'bg-slate-300'}`} />
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${p.connected ? 'bg-emerald-400' : 'bg-slate-300'}`} />
                     <Avatar
                       name={p.name}
                       src={p.avatar}
