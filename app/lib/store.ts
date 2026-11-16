@@ -1,6 +1,9 @@
 import { Room, RoomState, Participant, DISCONNECT_THRESHOLD, REMOVE_THRESHOLD } from './types';
 
-const rooms = new Map<string, Room>();
+// Stocké sur globalThis pour être partagé entre toutes les routes API
+// et survivre au rechargement à chaud en dev (sinon chaque route peut avoir sa propre Map).
+const globalStore = globalThis as typeof globalThis & { __pokerRooms?: Map<string, Room> };
+const rooms = (globalStore.__pokerRooms ??= new Map<string, Room>());
 
 function normalizeRoomId(id: string): string {
   return id?.toLowerCase().trim() || '';
@@ -103,8 +106,9 @@ export function getRoomState(roomId: string, requestingUserId?: string): RoomSta
   if (room.revealed) {
     Object.assign(votes, room.votes);
   } else {
+    // Votes masqués avant révélation, sauf celui de l'utilisateur qui demande
     for (const uid of Object.keys(room.votes)) {
-      votes[uid] = '?';
+      votes[uid] = uid === requestingUserId ? room.votes[uid] : '?';
     }
   }
 
