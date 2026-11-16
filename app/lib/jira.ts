@@ -1,28 +1,26 @@
 /**
- * Jira Cloud REST API integration.
+ * Intégration Jira Cloud REST API.
  *
- * Required environment variables:
- *   JIRA_BASE_URL        – e.g. https://mycompany.atlassian.net
- *   JIRA_EMAIL           – email of the Jira user
- *   JIRA_API_TOKEN       – API token (https://id.atlassian.com/manage-profile/security/api-tokens)
- *   JIRA_STORY_POINTS_FIELD – custom field id for story points (default: "story_points",
- *                              common alternatives: "customfield_10016", "customfield_10028")
+ * La configuration (URL, email, token API, champ story points) est saisie
+ * par le maître de la salle depuis l'interface et stockée avec la room.
+ * Token API : https://id.atlassian.com/manage-profile/security/api-tokens
  */
 
-export interface JiraConfig {
-  baseUrl: string;
-  email: string;
-  apiToken: string;
-  storyPointsField: string;
-}
+import type { JiraConfig } from './types';
 
-export function getJiraConfig(): JiraConfig | null {
-  const baseUrl = process.env.JIRA_BASE_URL?.replace(/\/+$/, '');
-  const email = process.env.JIRA_EMAIL;
-  const apiToken = process.env.JIRA_API_TOKEN;
-  const storyPointsField = process.env.JIRA_STORY_POINTS_FIELD || 'story_points';
+export type { JiraConfig };
+
+/** Nom du champ Jira utilisé par défaut (≠ « Story point estimate », customfield_10016). */
+export const DEFAULT_STORY_POINTS_FIELD = 'Story Points';
+
+export function normalizeJiraConfig(input: Partial<JiraConfig>): JiraConfig | null {
+  const baseUrl = input.baseUrl?.trim().replace(/\/+$/, '');
+  const email = input.email?.trim();
+  const apiToken = input.apiToken?.trim();
+  const storyPointsField = input.storyPointsField?.trim() || DEFAULT_STORY_POINTS_FIELD;
 
   if (!baseUrl || !email || !apiToken) return null;
+  if (!/^https:\/\/[^/]+/.test(baseUrl)) return null;
   return { baseUrl, email, apiToken, storyPointsField };
 }
 
@@ -120,5 +118,60 @@ export async function getIssue(
     };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Erreur réseau' };
+  }
+}
+
+/** Vérifie les identifiants en appelant /myself. */
+export async function testConnection(
+  config: JiraConfig
+): Promise<{ success: boolean; displayName?: string; error?: string }> {
+  try {
+    const res = await fetch(`${config.baseUrl}/rest/api/3/myself`, {
+      headers: { 'Authorization': authHeader(config), 'Accept': 'application/json' },
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { success: false, error: 'Identifiants Jira refusés (email ou token API invalide)' };
+    }
+    if (!res.ok) {
+      return { success: false, error: `Jira a répondu ${res.status}. Vérifiez l'URL de votre instance.` };
+    }
+    const data = await res.json();
+    return { success: true, displayName: data.displayName };
+  } catch {
+    return { success: false, error: "Impossible de joindre Jira. Vérifiez l'URL de votre instance." };
+  }
+}
+
+/**
+ * Résout le champ story points : accepte un identifiant (customfield_12345)
+ * ou un nom tel qu'affiché dans Jira (ex : « Story Points », insensible à la casse).
+ */
+export async function resolveStoryPointsField(
+  config: JiraConfig
+): Promise<{ success: true; id: string; name: string } | { success: false; error: string }> {
+  try {
+    const res = await fetch(`${config.baseUrl}/rest/api/3/field`, {
+      headers: { 'Authorization': authHeader(config), 'Accept': 'application/json' },
+    });
+    if (!res.ok) {
+      return { success: false, error: `Impossible de lister les champs Jira (${res.status})` };
+    }
+    const fields: { id: string; name: string }[] = await res.json();
+    const wanted = config.storyPointsField.trim();
+
+    const byId = fields.find((f) => f.id === wanted);
+    if (byId) return { success: true, id: byId.id, name: byId.name };
+
+    const byName = fields.filter((f) => f.name.toLowerCase() === wanted.toLowerCase());
+    if (byName.length === 1) return { success: true, id: byName[0].id, name: byName[0].name };
+    if (byName.length > 1) {
+      return {
+        success: false,
+        error: `Plusieurs champs s'appellent « ${wanted} » (${byName.map((f) => f.id).join(', ')}). Indiquez l'identifiant voulu.`,
+      };
+    }
+    return { success: false, error: `Aucun champ « ${wanted} » trouvé dans votre Jira` };
+  } catch {
+    return { success: false, error: 'Impossible de joindre Jira pour lister les champs' };
   }
 }

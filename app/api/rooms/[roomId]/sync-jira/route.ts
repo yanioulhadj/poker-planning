@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRoom } from '@/app/lib/store';
-import { getJiraConfig, extractIssueKey, updateStoryPoints } from '@/app/lib/jira';
+import { extractIssueKey, updateStoryPoints } from '@/app/lib/jira';
 
 export async function POST(
   request: Request,
@@ -18,10 +18,10 @@ export async function POST(
     return NextResponse.json({ error: 'Seul le maître de la salle peut synchroniser avec Jira' }, { status: 403 });
   }
 
-  const config = getJiraConfig();
+  const config = room.jiraConfig;
   if (!config) {
     return NextResponse.json(
-      { error: 'Jira n\'est pas configuré. Ajoutez JIRA_BASE_URL, JIRA_EMAIL et JIRA_API_TOKEN dans vos variables d\'environnement.' },
+      { error: 'Jira n\'est pas configuré pour cette salle. Utilisez le bouton « Jira » en haut de la page.' },
       { status: 400 }
     );
   }
@@ -56,9 +56,4 @@ export async function POST(
   }
 
   return NextResponse.json({ success: true, issueKey, points });
-}
-
-export async function GET() {
-  const config = getJiraConfig();
-  return NextResponse.json({ configured: !!config });
 }
