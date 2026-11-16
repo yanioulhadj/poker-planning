@@ -10,6 +10,7 @@ import VotingCard from '@/app/components/VotingCard';
 import ParticipantCard from '@/app/components/ParticipantCard';
 import TicketPanel from '@/app/components/TicketPanel';
 import VoteResults from '@/app/components/VoteResults';
+import Avatar from '@/app/components/Avatar';
 
 export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
@@ -183,7 +184,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               {copied ? '✓ Copié !' : '🔗 Partager'}
             </button>
             <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <Avatar name={user.name} src={user.avatar} className="h-5 w-5 text-[8px]" />
               {user.name}
               {isMaster && <span className="font-medium text-amber-600">(Maître)</span>}
             </div>
@@ -309,13 +310,12 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 {room.participants.map((p) => (
                   <div key={p.id} className="flex items-center gap-2">
                     <span className={`h-2 w-2 rounded-full ${p.connected ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-                    {p.avatar ? (
-                      <img src={p.avatar} alt={p.name} className="h-5 w-5 rounded-full" />
-                    ) : (
-                      <div className={`flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold text-white ${p.id === room.masterId ? 'bg-amber-500' : 'bg-indigo-500'}`}>
-                        {p.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <Avatar
+                      name={p.name}
+                      src={p.avatar}
+                      className="h-5 w-5 text-[8px]"
+                      fallbackClassName={p.id === room.masterId ? 'bg-amber-500' : 'bg-indigo-500'}
+                    />
                     <span className="flex-1 truncate text-xs text-slate-600">{p.name}</span>
                     {p.id === room.masterId && (
                       <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Maître</span>
