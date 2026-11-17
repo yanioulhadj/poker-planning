@@ -1,4 +1,5 @@
 import { Room, RoomState, Participant, JiraConfig, DISCONNECT_THRESHOLD, REMOVE_THRESHOLD } from './types';
+import { hasConsensus } from './votes';
 
 // Stocké sur globalThis pour être partagé entre toutes les routes API
 // et survivre au rechargement à chaud en dev (sinon chaque route peut avoir sa propre Map).
@@ -46,7 +47,10 @@ export function joinRoom(roomId: string, participant: Participant): Room | undef
 
 export function submitVote(roomId: string, userId: string, value: string): boolean {
   const room = rooms.get(normalizeRoomId(roomId));
-  if (!room || !room.participants[userId] || room.revealed) return false;
+  if (!room || !room.participants[userId]) return false;
+  // Après révélation : seuls les votants peuvent modifier leur vote, et uniquement
+  // tant qu'il n'y a pas de consensus (pour s'aligner sur les autres).
+  if (room.revealed && (!(userId in room.votes) || hasConsensus(room.votes))) return false;
   room.votes[userId] = value;
   return true;
 }
