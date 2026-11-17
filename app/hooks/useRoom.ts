@@ -75,11 +75,16 @@ export function useRoom(roomId: string, userId: string | undefined) {
     fetchRoom();
   }, [roomId, userId, fetchRoom]);
 
-  const joinRoom = useCallback(async (userName: string, avatar?: string, authType?: string) => {
+  const joinRoom = useCallback(async (
+    userName: string,
+    avatar?: string,
+    authType?: string,
+    role: 'dev' | 'observer' = 'dev'
+  ) => {
     await fetch(`/api/rooms/${roomId}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, userName, avatar, authType }),
+      body: JSON.stringify({ userId, userName, avatar, authType, role }),
     });
     fetchRoom();
   }, [roomId, userId, fetchRoom]);

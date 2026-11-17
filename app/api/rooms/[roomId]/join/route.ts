@@ -8,7 +8,7 @@ export async function POST(
 ) {
   const { roomId } = await params;
   const body = await request.json();
-  const { userId, userName, avatar, authType } = body;
+  const { userId, userName, avatar, authType, role } = body;
 
   if (!userId || !userName) {
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 });
@@ -19,7 +19,7 @@ export async function POST(
     name: userName,
     avatar: avatar || undefined,
     authType: authType || 'guest',
-    role: 'dev',
+    role: role === 'observer' ? 'observer' : 'dev',
     lastSeen: Date.now(),
     connected: true,
   };
