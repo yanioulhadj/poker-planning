@@ -358,6 +358,10 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                     <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
                       Votes révélés — consensus !
                     </div>
+                  ) : totalVotes === 0 ? (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
+                      Votes révélés
+                    </div>
                   ) : (
                     <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
                       Pas de consensus — discutez et ajustez vos votes
