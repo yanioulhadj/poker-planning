@@ -6,7 +6,8 @@ export interface User {
 }
 
 export interface Participant extends User {
-  role: 'master' | 'dev';
+  /** observer : suit la séance sans voter */
+  role: 'master' | 'dev' | 'observer';
   lastSeen: number;
   connected: boolean;
 }

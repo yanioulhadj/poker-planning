@@ -113,12 +113,20 @@ export async function joinRoom(roomId: string, participant: Participant): Promis
   const existingRaw = (await kv.hgetall(k.participants))[participant.id];
   const existing = existingRaw ? (JSON.parse(existingRaw) as Participant) : null;
   const next: Participant = existing
-    ? { ...existing, name: participant.name, avatar: participant.avatar || existing.avatar }
+    ? {
+        ...existing,
+        name: participant.name,
+        avatar: participant.avatar || existing.avatar,
+        // Le maître garde son rôle ; les autres peuvent basculer participant ↔ observateur
+        role: existing.role === 'master' || participant.id === meta.masterId ? 'master' : participant.role,
+      }
     : participant;
 
   await Promise.all([
     kv.hset(k.participants, participant.id, JSON.stringify(next)),
     kv.hset(k.seen, participant.id, String(Date.now())),
+    // Un observateur ne vote pas : on retire un éventuel vote en cours
+    next.role === 'observer' ? kv.hdel(k.votes, participant.id) : Promise.resolve(),
   ]);
   await touch(normId);
   return true;
@@ -127,6 +135,7 @@ export async function joinRoom(roomId: string, participant: Participant): Promis
 export async function submitVote(roomId: string, userId: string, value: string): Promise<boolean> {
   const room = await getRoom(roomId);
   if (!room || !room.participants[userId]) return false;
+  if (room.participants[userId].role === 'observer') return false;
   // Après révélation : seuls les votants peuvent modifier leur vote, et uniquement
   // tant qu'il n'y a pas de consensus (pour s'aligner sur les autres).
   if (room.revealed && (!(userId in room.votes) || hasConsensus(room.votes))) return false;
