@@ -6,6 +6,7 @@ import { signIn } from 'next-auth/react';
 import { useUser } from '@/app/hooks/useUser';
 import { useRoom } from '@/app/hooks/useRoom';
 import { VOTING_VALUES } from '@/app/lib/types';
+import { hasConsensus } from '@/app/lib/votes';
 import VotingCard from '@/app/components/VotingCard';
 import ParticipantCard from '@/app/components/ParticipantCard';
 import TicketPanel from '@/app/components/TicketPanel';
@@ -241,9 +242,15 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               {/* Status + master controls */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 {room.revealed ? (
-                  <div className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
-                    Votes révélés
-                  </div>
+                  hasConsensus(room.votes) ? (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
+                      Votes révélés — consensus !
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+                      Pas de consensus — discutez et ajustez vos votes
+                    </div>
+                  )
                 ) : totalVotes > 0 ? (
                   <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
                     {totalVotes}/{totalVoters} ont voté
@@ -298,6 +305,9 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                   userId={user.id}
                   jiraConfigured={!!room.jira}
                   onConfigureJira={() => setShowJiraSettings(true)}
+                  myVote={selectedVote}
+                  canChangeVote={user.id in room.votes}
+                  onChangeVote={handleVote}
                 />
               ) : (
                 <>
