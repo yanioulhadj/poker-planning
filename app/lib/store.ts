@@ -131,6 +131,7 @@ export async function joinRoom(roomId: string, participant: Participant): Promis
         avatar: participant.avatar || existing.avatar,
         // Rôle de vote uniquement (le statut de maître est géré à part, dans masterIds)
         role: participant.role,
+        joinedAt: existing.joinedAt ?? Date.now(),
       }
     : participant;
 
@@ -264,7 +265,10 @@ export async function getRoomState(roomId: string, requestingUserId?: string): P
     name: room.name,
     masterId: room.masterId,
     masterIds: room.masterIds,
-    participants: Object.values(room.participants),
+    // Les hash Redis ne garantissent pas l'ordre : tri par arrivée pour un affichage stable
+    participants: Object.values(room.participants).sort(
+      (a, b) => (a.joinedAt ?? Infinity) - (b.joinedAt ?? Infinity) || a.name.localeCompare(b.name)
+    ),
     votes,
     currentTicket: room.currentTicket,
     revealed: room.revealed,

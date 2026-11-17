@@ -9,6 +9,8 @@ export interface Participant extends User {
   /** Rôle de vote. observer : suit la séance sans voter. ('master' : ancien format, équivaut à 'dev') */
   role: 'master' | 'dev' | 'observer';
   lastSeen: number;
+  /** Date d'arrivée dans la room : sert à garder un ordre d'affichage stable */
+  joinedAt?: number;
   connected: boolean;
 }
 
