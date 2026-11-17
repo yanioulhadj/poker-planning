@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     name: userName,
     avatar: avatar || undefined,
     authType: authType || 'guest',
-    role: 'master',
+    role: 'dev',
     lastSeen: Date.now(),
     connected: true,
   };

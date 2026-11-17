@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRoom, setGroomingStatuses, setJiraConfig } from '@/app/lib/store';
+import { getRoom, isRoomMaster, setGroomingStatuses, setJiraConfig } from '@/app/lib/store';
 import { normalizeJiraConfig, resolveStoryPointsField, testConnection } from '@/app/lib/jira';
 
 /** Enregistre la configuration Jira de la salle (maître uniquement), après test de connexion. */
@@ -14,7 +14,7 @@ export async function POST(
   if (!room) {
     return NextResponse.json({ error: 'Salle introuvable' }, { status: 404 });
   }
-  if (room.masterId !== userId) {
+  if (!isRoomMaster(room, userId)) {
     return NextResponse.json({ error: 'Seul le maître de la salle peut configurer Jira' }, { status: 403 });
   }
 

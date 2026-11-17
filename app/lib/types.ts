@@ -6,7 +6,7 @@ export interface User {
 }
 
 export interface Participant extends User {
-  /** observer : suit la séance sans voter */
+  /** Rôle de vote. observer : suit la séance sans voter. ('master' : ancien format, équivaut à 'dev') */
   role: 'master' | 'dev' | 'observer';
   lastSeen: number;
   connected: boolean;
@@ -66,7 +66,10 @@ export interface JiraSync {
 export interface Room {
   id: string;
   name: string;
+  /** Créateur de la room */
   masterId: string;
+  /** Tous les maîtres de la room (créateur inclus) */
+  masterIds: string[];
   participants: Record<string, Participant>;
   votes: Record<string, string>;
   currentTicket: Ticket | null;
@@ -79,7 +82,10 @@ export interface Room {
 export interface RoomState {
   id: string;
   name: string;
+  /** Créateur de la room */
   masterId: string;
+  /** Tous les maîtres de la room (créateur inclus) */
+  masterIds: string[];
   participants: Participant[];
   votes: Record<string, string>;
   currentTicket: Ticket | null;

@@ -30,7 +30,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [showJiraSettings, setShowJiraSettings] = useState(false);
   const jiraAutoConfigured = useRef(false);
 
-  const isMaster = room?.masterId === user?.id;
+  const isMaster = !!user && !!room && room.masterIds.includes(user.id);
   const me = room?.participants.find((p) => p.id === user?.id);
   const isObserver = me?.role === 'observer';
   const [choosingRole, setChoosingRole] = useState<'dev' | 'observer' | null>(null);
@@ -63,6 +63,23 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     joinRoom(user.name, user.avatar, user.authType, me?.role === 'observer' ? 'observer' : 'dev');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, user?.id, room?.id]);
+
+  // Gestion des maîtres (réservée aux maîtres)
+  const [masterError, setMasterError] = useState('');
+  const toggleMaster = async (targetId: string, makeMaster: boolean) => {
+    if (!user) return;
+    setMasterError('');
+    const res = await fetch(`/api/rooms/${roomId}/masters`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, targetId, master: makeMaster }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => null);
+      setMasterError(data?.error ?? 'Action impossible');
+    }
+    refresh();
+  };
 
   const joinAs = async (role: 'dev' | 'observer') => {
     if (!user) return;
@@ -279,7 +296,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 {room.jira ? '✓ Jira' : '⚙️ Jira'}
               </button>
             )}
-            {!isMaster && (
+            {me && (
               <button
                 onClick={() => joinAs(isObserver ? 'dev' : 'observer')}
                 disabled={choosingRole !== null}
@@ -383,7 +400,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                     participant={p}
                     vote={room.votes[p.id]}
                     revealed={room.revealed}
-                    isMaster={p.id === room.masterId}
+                    isMaster={room.masterIds.includes(p.id)}
                   />
                 ))}
               </div>
@@ -479,16 +496,16 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               </h3>
               <div className="space-y-2">
                 {room.participants.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2">
+                  <div key={p.id} className="group flex items-center gap-2">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${p.connected ? 'bg-emerald-400' : 'bg-slate-300'}`} />
                     <Avatar
                       name={p.name}
                       src={p.avatar}
                       className="h-5 w-5 text-[8px]"
-                      fallbackClassName={p.id === room.masterId ? 'bg-amber-500' : 'bg-indigo-500'}
+                      fallbackClassName={room.masterIds.includes(p.id) ? 'bg-amber-500' : 'bg-indigo-500'}
                     />
                     <span className="flex-1 truncate text-xs text-slate-600">{p.name}</span>
-                    {p.id === room.masterId && (
+                    {room.masterIds.includes(p.id) && (
                       <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Maître</span>
                     )}
                     {p.role === 'observer' && (
@@ -499,8 +516,18 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                         {room.revealed ? room.votes[p.id] : 'A voté'}
                       </span>
                     )}
+                    {isMaster && (room.masterIds.includes(p.id) ? room.masterIds.length > 1 : true) && (
+                      <button
+                        onClick={() => toggleMaster(p.id, !room.masterIds.includes(p.id))}
+                        title={room.masterIds.includes(p.id) ? 'Retirer le rôle de maître' : 'Nommer maître de la salle'}
+                        className="hidden cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-500 transition hover:bg-amber-50 hover:text-amber-700 group-hover:inline"
+                      >
+                        {room.masterIds.includes(p.id) ? 'Retirer maître' : '+ Maître'}
+                      </button>
+                    )}
                   </div>
                 ))}
+                {masterError && <p className="text-[11px] text-red-500">{masterError}</p>}
               </div>
             </div>
           </div>
