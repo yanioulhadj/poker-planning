@@ -9,7 +9,7 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId') || undefined;
 
-  const state = getRoomState(roomId, userId);
+  const state = await getRoomState(roomId, userId);
   if (!state) {
     return NextResponse.json({ error: 'Salle introuvable' }, { status: 404 });
   }

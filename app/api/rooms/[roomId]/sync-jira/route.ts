@@ -9,7 +9,7 @@ export async function POST(
   const { roomId } = await params;
   const { userId, value } = await request.json();
 
-  const room = getRoom(roomId);
+  const room = await getRoom(roomId);
   if (!room) {
     return NextResponse.json({ error: 'Salle introuvable' }, { status: 404 });
   }

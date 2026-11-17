@@ -12,7 +12,7 @@ export async function POST(
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 });
   }
 
-  const success = submitVote(roomId, userId, value);
+  const success = await submitVote(roomId, userId, value);
   if (!success) {
     return NextResponse.json({ error: 'Vote impossible' }, { status: 400 });
   }

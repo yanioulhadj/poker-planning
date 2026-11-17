@@ -24,8 +24,8 @@ export async function POST(
     connected: true,
   };
 
-  const room = joinRoom(roomId, participant);
-  if (!room) {
+  const joined = await joinRoom(roomId, participant);
+  if (!joined) {
     return NextResponse.json({ error: 'Salle introuvable' }, { status: 404 });
   }
 

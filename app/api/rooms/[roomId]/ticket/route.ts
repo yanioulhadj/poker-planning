@@ -12,7 +12,7 @@ export async function POST(
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 });
   }
 
-  const success = setTicket(roomId, userId, url, title || url);
+  const success = await setTicket(roomId, userId, url, title || url);
   if (!success) {
     return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 });
   }
