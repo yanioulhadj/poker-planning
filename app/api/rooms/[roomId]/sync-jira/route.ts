@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRoom } from '@/app/lib/store';
+import { getRoom, isRoomMaster, setJiraSync } from '@/app/lib/store';
 import { extractIssueKey, updateStoryPoints } from '@/app/lib/jira';
 
 export async function POST(
@@ -9,12 +9,12 @@ export async function POST(
   const { roomId } = await params;
   const { userId, value } = await request.json();
 
-  const room = getRoom(roomId);
+  const room = await getRoom(roomId);
   if (!room) {
     return NextResponse.json({ error: 'Salle introuvable' }, { status: 404 });
   }
 
-  if (room.masterId !== userId) {
+  if (!isRoomMaster(room, userId)) {
     return NextResponse.json({ error: 'Seul le maître de la salle peut synchroniser avec Jira' }, { status: 403 });
   }
 
@@ -54,6 +54,14 @@ export async function POST(
       { status: 502 }
     );
   }
+
+  // Mémorise l'envoi dans la room pour que tous les participants le voient
+  await setJiraSync(roomId, userId, {
+    issueKey,
+    points,
+    ticketUrl: room.currentTicket.url,
+    at: Date.now(),
+  });
 
   return NextResponse.json({ success: true, issueKey, points });
 }

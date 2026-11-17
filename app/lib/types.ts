@@ -6,8 +6,11 @@ export interface User {
 }
 
 export interface Participant extends User {
-  role: 'master' | 'dev';
+  /** Rôle de vote. observer : suit la séance sans voter. ('master' : ancien format, équivaut à 'dev') */
+  role: 'master' | 'dev' | 'observer';
   lastSeen: number;
+  /** Date d'arrivée dans la room : sert à garder un ordre d'affichage stable */
+  joinedAt?: number;
   connected: boolean;
 }
 
@@ -24,6 +27,12 @@ export interface JiraConfig {
   storyPointsField: string;
   /** Nom affiché dans Jira (ex : Story Points) */
   storyPointsFieldName?: string;
+  /** Statut(s) Jira à filtrer, séparés par des virgules (optionnel, ex : Grooming, Elaboration) */
+  groomingStatus?: string;
+  /** Clé du projet pour limiter le backlog (optionnel, ex : PROJ) */
+  projectKey?: string;
+  /** Nom du sprint contenant les tickets à groomer (optionnel, ex : Préparation grooming) */
+  groomingSprint?: string;
 }
 
 /** Infos Jira exposées aux clients (jamais le token). */
@@ -32,29 +41,59 @@ export interface JiraPublicInfo {
   email: string;
   storyPointsField: string;
   storyPointsFieldName?: string;
+  groomingStatus?: string;
+  projectKey?: string;
+  groomingSprint?: string;
+}
+
+/** Ticket Jira affiché dans la section « Préparation grooming ». */
+export interface BacklogIssue {
+  key: string;
+  summary: string;
+  url: string;
+  issueType?: string;
+  priority?: string;
+  status?: string;
+  storyPoints: number | null;
+}
+
+/** Dernier envoi de story points sur Jira, visible par toute la room. */
+export interface JiraSync {
+  issueKey: string;
+  points: number;
+  ticketUrl: string;
+  at: number;
 }
 
 export interface Room {
   id: string;
   name: string;
+  /** Créateur de la room */
   masterId: string;
+  /** Tous les maîtres de la room (créateur inclus) */
+  masterIds: string[];
   participants: Record<string, Participant>;
   votes: Record<string, string>;
   currentTicket: Ticket | null;
   revealed: boolean;
   createdAt: number;
   jiraConfig: JiraConfig | null;
+  jiraSync?: JiraSync | null;
 }
 
 export interface RoomState {
   id: string;
   name: string;
+  /** Créateur de la room */
   masterId: string;
+  /** Tous les maîtres de la room (créateur inclus) */
+  masterIds: string[];
   participants: Participant[];
   votes: Record<string, string>;
   currentTicket: Ticket | null;
   revealed: boolean;
   jira: JiraPublicInfo | null;
+  jiraSync: JiraSync | null;
 }
 
 export const VOTING_VALUES = ['0', '1', '2', '3', '5', '8', '13', '21', '34', '?', '☕'];

@@ -5,12 +5,16 @@ import type { JiraPublicInfo } from '@/app/lib/types';
 
 export const JIRA_STORAGE_KEY = 'poker-planning-jira-config';
 const DEFAULT_STORY_POINTS_FIELD = 'Story Points';
+const DEFAULT_GROOMING_SPRINT = 'Préparation grooming';
 
 export interface StoredJiraConfig {
   baseUrl: string;
   email: string;
   apiToken: string;
   storyPointsField: string;
+  groomingStatus?: string;
+  projectKey?: string;
+  groomingSprint?: string;
 }
 
 export function loadStoredJiraConfig(): StoredJiraConfig | null {
@@ -42,13 +46,20 @@ export default function JiraSettings({ roomId, userId, current, onClose, onSaved
   const [storyPointsField, setStoryPointsField] = useState(
     current?.storyPointsFieldName ?? stored?.storyPointsField ?? DEFAULT_STORY_POINTS_FIELD
   );
+  const [groomingStatus, setGroomingStatus] = useState(
+    current ? current.groomingStatus ?? '' : stored?.groomingStatus ?? ''
+  );
+  const [projectKey, setProjectKey] = useState(current?.projectKey ?? stored?.projectKey ?? '');
+  const [groomingSprint, setGroomingSprint] = useState(
+    current?.groomingSprint ?? stored?.groomingSprint ?? DEFAULT_GROOMING_SPRINT
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const handleSave = async () => {
     setSaving(true);
     setError('');
-    const config = { baseUrl, email, apiToken, storyPointsField };
+    const config = { baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint };
     try {
       const res = await fetch(`/api/rooms/${roomId}/jira`, {
         method: 'POST',
@@ -89,7 +100,7 @@ export default function JiraSettings({ roomId, userId, current, onClose, onSaved
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
@@ -166,6 +177,39 @@ export default function JiraSettings({ roomId, userId, current, onClose, onSaved
               )}
             </span>
           </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Sprint de préparation</span>
+            <input
+              className={inputClass}
+              placeholder="Aucun filtre sur le sprint"
+              value={groomingSprint}
+              onChange={(e) => setGroomingSprint(e.target.value)}
+            />
+          </label>
+          <div className="grid grid-cols-[1fr_7rem] gap-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Statuts (optionnel)</span>
+              <input
+                className={inputClass}
+                placeholder="Tous les statuts"
+                value={groomingStatus}
+                onChange={(e) => setGroomingStatus(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Projet</span>
+              <input
+                className={inputClass}
+                placeholder="PROJ"
+                value={projectKey}
+                onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
+              />
+            </label>
+          </div>
+          <p className="-mt-1 text-[11px] text-slate-400">
+            La room affiche les tickets de ce sprint. Statuts (séparés par des virgules) et projet sont
+            optionnels : laissez vide pour ne pas filtrer.
+          </p>
         </div>
 
         <p className="mt-3 text-[11px] text-slate-400">
