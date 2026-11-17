@@ -6,22 +6,38 @@
  * Token API : https://id.atlassian.com/manage-profile/security/api-tokens
  */
 
-import type { JiraConfig } from './types';
+import type { BacklogIssue, JiraConfig } from './types';
 
 export type { JiraConfig };
 
 /** Nom du champ Jira utilisé par défaut (≠ « Story point estimate », customfield_10016). */
 export const DEFAULT_STORY_POINTS_FIELD = 'Story Points';
 
+export const DEFAULT_GROOMING_SPRINT = 'Préparation grooming';
+
+/** « Grooming, Elaboration » → ['Grooming', 'Elaboration'] */
+export function parseStatuses(value: string): string[] {
+  return value.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 export function normalizeJiraConfig(input: Partial<JiraConfig>): JiraConfig | null {
   const baseUrl = input.baseUrl?.trim().replace(/\/+$/, '');
   const email = input.email?.trim();
   const apiToken = input.apiToken?.trim();
   const storyPointsField = input.storyPointsField?.trim() || DEFAULT_STORY_POINTS_FIELD;
+  // Optionnel : vide → pas de filtre sur le statut
+  const groomingStatus = parseStatuses(input.groomingStatus ?? '').join(', ') || undefined;
+  const projectKey = input.projectKey?.trim().toUpperCase() || undefined;
+  // Non fourni → sprint par défaut ; chaîne vide → pas de filtre sur le sprint
+  const groomingSprint =
+    input.groomingSprint === undefined ? DEFAULT_GROOMING_SPRINT : input.groomingSprint.trim() || undefined;
 
   if (!baseUrl || !email || !apiToken) return null;
   if (!/^https:\/\/[^/]+/.test(baseUrl)) return null;
-  return { baseUrl, email, apiToken, storyPointsField };
+  if (projectKey && !/^[A-Z][A-Z0-9_]+$/.test(projectKey)) return null;
+  // Sans sprint ni statut, la recherche renverrait tout le Jira
+  if (!groomingSprint && !groomingStatus) return null;
+  return { baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint };
 }
 
 function authHeader(config: JiraConfig): string {
@@ -173,5 +189,84 @@ export async function resolveStoryPointsField(
     return { success: false, error: `Aucun champ « ${wanted} » trouvé dans votre Jira` };
   } catch {
     return { success: false, error: 'Impossible de joindre Jira pour lister les champs' };
+  }
+}
+
+const jqlString = (value: string) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+
+/** Tickets du sprint de préparation (et des statuts choisis, si définis), triés par rang du backlog. */
+export async function searchBacklog(
+  config: JiraConfig
+): Promise<{ success: true; issues: BacklogIssue[] } | { success: false; error: string }> {
+  const clauses: string[] = [];
+  if (config.groomingSprint) {
+    // Avec un sprint, on récupère tous ses tickets : le filtre par statut est appliqué
+    // dans l'interface (pastilles), ce qui permet d'afficher le nombre de tickets par statut.
+    clauses.push(`sprint = ${jqlString(config.groomingSprint)}`);
+  } else {
+    const statuses = parseStatuses(config.groomingStatus ?? '');
+    if (statuses.length) clauses.push(`status in (${statuses.map(jqlString).join(', ')})`);
+  }
+  if (!clauses.length) {
+    return { success: false, error: 'Indiquez un sprint ou des statuts dans la configuration Jira' };
+  }
+  if (config.projectKey) clauses.unshift(`project = ${jqlString(config.projectKey)}`);
+  const jql = `${clauses.join(' AND ')} ORDER BY Rank ASC`;
+
+  type RawIssue = { key: string; fields: Record<string, unknown> & {
+    summary?: string; issuetype?: { name?: string }; priority?: { name?: string }; status?: { name?: string };
+  } };
+  const MAX_ISSUES = 500;
+  const raw: RawIssue[] = [];
+
+  try {
+    // Pagination via nextPageToken (API /search/jql)
+    let nextPageToken: string | undefined;
+    do {
+      const res = await fetch(`${config.baseUrl}/rest/api/3/search/jql`, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader(config),
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          jql,
+          maxResults: 100,
+          fields: ['summary', 'issuetype', 'priority', 'status', config.storyPointsField],
+          ...(nextPageToken ? { nextPageToken } : {}),
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        let message = `Jira API ${res.status}`;
+        try {
+          const json = JSON.parse(body);
+          if (json.errorMessages?.length) message = json.errorMessages.join(', ');
+        } catch {}
+        return { success: false, error: message };
+      }
+
+      const data = await res.json();
+      raw.push(...(data.issues ?? []));
+      nextPageToken = data.isLast ? undefined : data.nextPageToken;
+    } while (nextPageToken && raw.length < MAX_ISSUES);
+
+    const issues: BacklogIssue[] = raw.slice(0, MAX_ISSUES).map((i) => {
+      const points = i.fields[config.storyPointsField];
+      return {
+        key: i.key,
+        summary: i.fields.summary ?? '',
+        url: `${config.baseUrl}/browse/${i.key}`,
+        issueType: i.fields.issuetype?.name,
+        priority: i.fields.priority?.name,
+        status: i.fields.status?.name,
+        storyPoints: typeof points === 'number' ? points : null,
+      };
+    });
+    return { success: true, issues };
+  } catch {
+    return { success: false, error: 'Impossible de joindre Jira' };
   }
 }
