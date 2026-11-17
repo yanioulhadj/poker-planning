@@ -471,6 +471,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           </div>
 
           {/* Sidebar (desktop) */}
+          {/* Ticket et participants gardent leur hauteur ; le backlog se réduit et défile */}
           <div className="hidden min-h-0 flex-col gap-4 overflow-y-auto lg:flex">
             <TicketPanel
               ticket={room.currentTicket}
@@ -491,14 +492,15 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               onConfigureJira={() => setShowJiraSettings(true)}
               onFilterChange={refresh}
               syncAt={room.jiraSync?.at}
+              fill
             />
 
-            {/* Participants list */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="mb-3 text-sm font-semibold text-slate-700">
+            {/* Participants list : toujours visible, défile au-delà de 40 % de la colonne */}
+            <div className="flex max-h-[40%] shrink-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="mb-3 shrink-0 text-sm font-semibold text-slate-700">
                 Participants ({room.participants.length})
               </h3>
-              <div className="space-y-2">
+              <div className="-mr-2 min-h-0 space-y-2 overflow-y-auto pr-2">
                 {room.participants.map((p) => (
                   <div key={p.id} className="group flex items-center gap-2">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${p.connected ? 'bg-emerald-400' : 'bg-slate-300'}`} />

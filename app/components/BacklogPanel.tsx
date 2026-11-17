@@ -21,6 +21,8 @@ interface BacklogPanelProps {
   onFilterChange: () => void;
   /** Horodatage du dernier envoi Jira : la liste se recharge pour afficher les nouveaux points */
   syncAt?: number;
+  /** Remplit la hauteur disponible (colonne de droite) : la liste défile au lieu de pousser la suite */
+  fill?: boolean;
 }
 
 export default function BacklogPanel({
@@ -33,6 +35,7 @@ export default function BacklogPanel({
   onConfigureJira,
   onFilterChange,
   syncAt,
+  fill = false,
 }: BacklogPanelProps) {
   const [issues, setIssues] = useState<BacklogIssue[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,7 +130,7 @@ export default function BacklogPanel({
   const title = 'Préparation grooming';
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${fill ? 'flex min-h-0 flex-col' : ''}`}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="truncate text-sm font-semibold text-slate-700">
           {title}
@@ -201,7 +204,7 @@ export default function BacklogPanel({
           {jira.projectKey ? ` (projet ${jira.projectKey})` : ''}
         </p>
       ) : (
-        <ul className="-mx-1 max-h-72 space-y-1 overflow-y-auto px-1">
+        <ul className={`-mx-1 space-y-1 overflow-y-auto px-1 ${fill ? 'min-h-0 flex-1' : 'max-h-72'}`}>
           {visibleIssues.map((issue) => {
             const isCurrent = currentTicket?.url === issue.url;
             const selectable = isMaster && !isCurrent;
