@@ -160,6 +160,15 @@ export async function setJiraConfig(roomId: string, userId: string, config: Jira
   return !!(await updateAsMaster(roomId, userId, (m) => { m.jiraConfig = config; }));
 }
 
+/** Met à jour uniquement le filtre de statuts du backlog (maître uniquement). */
+export async function setGroomingStatuses(roomId: string, userId: string, statuses: string[]): Promise<boolean> {
+  return !!(await updateAsMaster(roomId, userId, (m) => {
+    if (!m.jiraConfig) return;
+    const value = statuses.map((s) => s.trim()).filter(Boolean).join(', ');
+    m.jiraConfig.groomingStatus = value || undefined;
+  }));
+}
+
 export async function getRoomState(roomId: string, requestingUserId?: string): Promise<RoomState | undefined> {
   const room = await getRoom(roomId);
   if (!room) return undefined;
@@ -210,6 +219,9 @@ export async function getRoomState(roomId: string, requestingUserId?: string): P
           email: room.jiraConfig.email,
           storyPointsField: room.jiraConfig.storyPointsField,
           storyPointsFieldName: room.jiraConfig.storyPointsFieldName,
+          groomingStatus: room.jiraConfig.groomingStatus,
+          projectKey: room.jiraConfig.projectKey,
+          groomingSprint: room.jiraConfig.groomingSprint,
         }
       : null,
   };

@@ -24,6 +24,12 @@ export interface JiraConfig {
   storyPointsField: string;
   /** Nom affiché dans Jira (ex : Story Points) */
   storyPointsFieldName?: string;
+  /** Statut(s) Jira à filtrer, séparés par des virgules (optionnel, ex : Grooming, Elaboration) */
+  groomingStatus?: string;
+  /** Clé du projet pour limiter le backlog (optionnel, ex : PROJ) */
+  projectKey?: string;
+  /** Nom du sprint contenant les tickets à groomer (optionnel, ex : Préparation grooming) */
+  groomingSprint?: string;
 }
 
 /** Infos Jira exposées aux clients (jamais le token). */
@@ -32,6 +38,20 @@ export interface JiraPublicInfo {
   email: string;
   storyPointsField: string;
   storyPointsFieldName?: string;
+  groomingStatus?: string;
+  projectKey?: string;
+  groomingSprint?: string;
+}
+
+/** Ticket Jira affiché dans la section « Préparation grooming ». */
+export interface BacklogIssue {
+  key: string;
+  summary: string;
+  url: string;
+  issueType?: string;
+  priority?: string;
+  status?: string;
+  storyPoints: number | null;
 }
 
 export interface Room {

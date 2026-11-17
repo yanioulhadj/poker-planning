@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRoom, setJiraConfig } from '@/app/lib/store';
+import { getRoom, setGroomingStatuses, setJiraConfig } from '@/app/lib/store';
 import { normalizeJiraConfig, resolveStoryPointsField, testConnection } from '@/app/lib/jira';
 
 /** Enregistre la configuration Jira de la salle (maître uniquement), après test de connexion. */
@@ -8,7 +8,7 @@ export async function POST(
   { params }: { params: Promise<{ roomId: string }> }
 ) {
   const { roomId } = await params;
-  const { userId, baseUrl, email, apiToken, storyPointsField } = await request.json();
+  const { userId, baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint } = await request.json();
 
   const room = await getRoom(roomId);
   if (!room) {
@@ -18,7 +18,14 @@ export async function POST(
     return NextResponse.json({ error: 'Seul le maître de la salle peut configurer Jira' }, { status: 403 });
   }
 
-  const config = normalizeJiraConfig({ baseUrl, email, apiToken, storyPointsField });
+  if (!groomingSprint?.trim() && !groomingStatus?.trim()) {
+    return NextResponse.json(
+      { error: 'Indiquez au moins un sprint ou un statut pour lister les tickets à groomer' },
+      { status: 400 }
+    );
+  }
+
+  const config = normalizeJiraConfig({ baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint });
   if (!config) {
     return NextResponse.json(
       { error: 'Champs invalides : URL (https://…), email et token API sont requis' },
@@ -47,6 +54,30 @@ export async function POST(
     storyPointsField: field.id,
     storyPointsFieldName: field.name,
   });
+}
+
+/** Met à jour le filtre de statuts du backlog (maître uniquement). */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ roomId: string }> }
+) {
+  const { roomId } = await params;
+  const { userId, groomingStatuses } = await request.json();
+
+  if (!Array.isArray(groomingStatuses) || groomingStatuses.some((s) => typeof s !== 'string')) {
+    return NextResponse.json({ error: 'Liste de statuts invalide' }, { status: 400 });
+  }
+  const room = await getRoom(roomId);
+  if (!room?.jiraConfig) {
+    return NextResponse.json({ error: 'Jira non configuré' }, { status: 400 });
+  }
+  if (!room.jiraConfig.groomingSprint && groomingStatuses.length === 0) {
+    return NextResponse.json({ error: 'Sans sprint, au moins un statut est requis' }, { status: 400 });
+  }
+  if (!(await setGroomingStatuses(roomId, userId, groomingStatuses))) {
+    return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 });
+  }
+  return NextResponse.json({ success: true });
 }
 
 /** Supprime la configuration Jira de la salle (maître uniquement). */
