@@ -55,6 +55,14 @@ export interface BacklogIssue {
   storyPoints: number | null;
 }
 
+/** Dernier envoi de story points sur Jira, visible par toute la room. */
+export interface JiraSync {
+  issueKey: string;
+  points: number;
+  ticketUrl: string;
+  at: number;
+}
+
 export interface Room {
   id: string;
   name: string;
@@ -65,6 +73,7 @@ export interface Room {
   revealed: boolean;
   createdAt: number;
   jiraConfig: JiraConfig | null;
+  jiraSync?: JiraSync | null;
 }
 
 export interface RoomState {
@@ -76,6 +85,7 @@ export interface RoomState {
   currentTicket: Ticket | null;
   revealed: boolean;
   jira: JiraPublicInfo | null;
+  jiraSync: JiraSync | null;
 }
 
 export const VOTING_VALUES = ['0', '1', '2', '3', '5', '8', '13', '21', '34', '?', '☕'];

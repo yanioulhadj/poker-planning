@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRoom } from '@/app/lib/store';
+import { getRoom, setJiraSync } from '@/app/lib/store';
 import { extractIssueKey, updateStoryPoints } from '@/app/lib/jira';
 
 export async function POST(
@@ -54,6 +54,14 @@ export async function POST(
       { status: 502 }
     );
   }
+
+  // Mémorise l'envoi dans la room pour que tous les participants le voient
+  await setJiraSync(roomId, userId, {
+    issueKey,
+    points,
+    ticketUrl: room.currentTicket.url,
+    at: Date.now(),
+  });
 
   return NextResponse.json({ success: true, issueKey, points });
 }
