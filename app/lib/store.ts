@@ -1,4 +1,4 @@
-import { Room, RoomState, Participant, JiraConfig, Ticket, DISCONNECT_THRESHOLD, REMOVE_THRESHOLD } from './types';
+import { Room, RoomState, Participant, JiraConfig, JiraSync, Ticket, DISCONNECT_THRESHOLD, REMOVE_THRESHOLD } from './types';
 import { hasConsensus } from './votes';
 import { kv } from './kv';
 
@@ -21,6 +21,7 @@ interface RoomMeta {
   revealed: boolean;
   createdAt: number;
   jiraConfig: JiraConfig | null;
+  jiraSync?: JiraSync | null;
 }
 
 function normalizeRoomId(id: string): string {
@@ -169,6 +170,11 @@ export async function setJiraConfig(roomId: string, userId: string, config: Jira
   return !!(await updateAsMaster(roomId, userId, (m) => { m.jiraConfig = config; }));
 }
 
+/** Enregistre le dernier envoi de story points sur Jira (maître uniquement). */
+export async function setJiraSync(roomId: string, userId: string, sync: JiraSync): Promise<boolean> {
+  return !!(await updateAsMaster(roomId, userId, (m) => { m.jiraSync = sync; }));
+}
+
 /** Met à jour uniquement le filtre de statuts du backlog (maître uniquement). */
 export async function setGroomingStatuses(roomId: string, userId: string, statuses: string[]): Promise<boolean> {
   return !!(await updateAsMaster(roomId, userId, (m) => {
@@ -233,6 +239,7 @@ export async function getRoomState(roomId: string, requestingUserId?: string): P
           groomingSprint: room.jiraConfig.groomingSprint,
         }
       : null,
+    jiraSync: room.jiraSync ?? null,
   };
 }
 
