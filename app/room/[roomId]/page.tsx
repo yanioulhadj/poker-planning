@@ -35,6 +35,26 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const isObserver = me?.role === 'observer';
   const [choosingRole, setChoosingRole] = useState<'dev' | 'observer' | null>(null);
 
+  // Notification pour toute la room quand le maître envoie des story points sur Jira
+  const [syncToast, setSyncToast] = useState<string | null>(null);
+  const lastSyncAt = useRef<number | null | undefined>(undefined);
+  const syncAt = room?.jiraSync?.at ?? null;
+  useEffect(() => {
+    if (!room) return;
+    if (lastSyncAt.current === undefined) {
+      // Premier chargement : on ne notifie pas un envoi déjà passé
+      lastSyncAt.current = syncAt;
+      return;
+    }
+    if (syncAt && syncAt !== lastSyncAt.current && room.jiraSync) {
+      lastSyncAt.current = syncAt;
+      setSyncToast(`${room.jiraSync.issueKey} mis à jour sur Jira : ${room.jiraSync.points} pts`);
+      const t = setTimeout(() => setSyncToast(null), 6000);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncAt, !!room]);
+
   // Déjà dans la room (ou maître) : on se réannonce en gardant son rôle.
   // Nouvel arrivant : il choisit d'abord participant ou observateur (écran dédié plus bas).
   useEffect(() => {
@@ -297,6 +317,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 onSetTicket={setTicket}
                 showIframe={showIframe}
                 onToggleIframe={() => setShowIframe(!showIframe)}
+                sync={room.jiraSync}
               />
               <BacklogPanel
                 roomId={roomId}
@@ -307,6 +328,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 onSelect={setTicket}
                 onConfigureJira={() => setShowJiraSettings(true)}
                 onFilterChange={refresh}
+                syncAt={room.jiraSync?.at}
               />
             </div>
 
@@ -435,6 +457,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               onSetTicket={setTicket}
               showIframe={showIframe}
               onToggleIframe={() => setShowIframe(!showIframe)}
+              sync={room.jiraSync}
             />
 
             <BacklogPanel
@@ -446,6 +469,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               onSelect={setTicket}
               onConfigureJira={() => setShowJiraSettings(true)}
               onFilterChange={refresh}
+              syncAt={room.jiraSync?.at}
             />
 
             {/* Participants list */}
@@ -482,6 +506,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           </div>
         </div>
       </main>
+      {syncToast && (
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-40 flex justify-center px-4">
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/30">
+            ✓ {syncToast}
+          </div>
+        </div>
+      )}
       {showJiraSettings && isMaster && (
         <JiraSettings
           roomId={roomId}

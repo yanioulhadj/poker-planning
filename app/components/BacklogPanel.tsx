@@ -19,6 +19,8 @@ interface BacklogPanelProps {
   onConfigureJira: () => void;
   /** Appelé après modification du filtre de statuts (pour rafraîchir la room) */
   onFilterChange: () => void;
+  /** Horodatage du dernier envoi Jira : la liste se recharge pour afficher les nouveaux points */
+  syncAt?: number;
 }
 
 export default function BacklogPanel({
@@ -30,6 +32,7 @@ export default function BacklogPanel({
   onSelect,
   onConfigureJira,
   onFilterChange,
+  syncAt,
 }: BacklogPanelProps) {
   const [issues, setIssues] = useState<BacklogIssue[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,7 +122,7 @@ export default function BacklogPanel({
     load();
     const id = setInterval(load, REFRESH_INTERVAL);
     return () => clearInterval(id);
-  }, [load, jiraKey, currentTicket?.url]);
+  }, [load, jiraKey, currentTicket?.url, syncAt]);
 
   const title = 'Préparation grooming';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Ticket } from '@/app/lib/types';
+import { JiraSync, Ticket } from '@/app/lib/types';
 
 interface TicketPanelProps {
   ticket: Ticket | null;
@@ -9,9 +9,11 @@ interface TicketPanelProps {
   onSetTicket: (url: string, title: string) => void;
   showIframe: boolean;
   onToggleIframe: () => void;
+  /** Dernier envoi de story points sur Jira (affiché s'il concerne ce ticket) */
+  sync?: JiraSync | null;
 }
 
-export default function TicketPanel({ ticket, isMaster, onSetTicket, showIframe, onToggleIframe }: TicketPanelProps) {
+export default function TicketPanel({ ticket, isMaster, onSetTicket, showIframe, onToggleIframe, sync }: TicketPanelProps) {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [editing, setEditing] = useState(false);
@@ -73,6 +75,11 @@ export default function TicketPanel({ ticket, isMaster, onSetTicket, showIframe,
       ) : ticket ? (
         <div className="space-y-2">
           <p className="text-sm font-medium text-slate-800">{ticket.title}</p>
+          {sync && sync.ticketUrl === ticket.url && (
+            <p className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+              ✓ {sync.points} pts envoyés sur Jira ({sync.issueKey})
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <a
               href={ticket.url}
