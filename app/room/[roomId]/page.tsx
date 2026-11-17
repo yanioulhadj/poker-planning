@@ -13,6 +13,7 @@ import TicketPanel from '@/app/components/TicketPanel';
 import VoteResults from '@/app/components/VoteResults';
 import Avatar from '@/app/components/Avatar';
 import JiraSettings, { loadStoredJiraConfig } from '@/app/components/JiraSettings';
+import BacklogPanel from '@/app/components/BacklogPanel';
 
 export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
@@ -226,14 +227,24 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
         <div className="grid gap-4 lg:h-full lg:grid-cols-[1fr_280px]">
           {/* Main area */}
           <div className="flex flex-col gap-4 lg:min-h-0">
-            {/* Ticket Panel (mobile) */}
-            <div className="lg:hidden">
+            {/* Ticket + backlog (mobile) */}
+            <div className="space-y-4 lg:hidden">
               <TicketPanel
                 ticket={room.currentTicket}
                 isMaster={isMaster}
                 onSetTicket={setTicket}
                 showIframe={showIframe}
                 onToggleIframe={() => setShowIframe(!showIframe)}
+              />
+              <BacklogPanel
+                roomId={roomId}
+                userId={user.id}
+                isMaster={isMaster}
+                jira={room.jira}
+                currentTicket={room.currentTicket}
+                onSelect={setTicket}
+                onConfigureJira={() => setShowJiraSettings(true)}
+                onFilterChange={refresh}
               />
             </div>
 
@@ -338,6 +349,17 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               onSetTicket={setTicket}
               showIframe={showIframe}
               onToggleIframe={() => setShowIframe(!showIframe)}
+            />
+
+            <BacklogPanel
+              roomId={roomId}
+              userId={user.id}
+              isMaster={isMaster}
+              jira={room.jira}
+              currentTicket={room.currentTicket}
+              onSelect={setTicket}
+              onConfigureJira={() => setShowJiraSettings(true)}
+              onFilterChange={refresh}
             />
 
             {/* Participants list */}
