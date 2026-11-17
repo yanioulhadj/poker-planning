@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     connected: true,
   };
 
-  createRoom(roomId, roomName, master);
+  await createRoom(roomId, roomName, master);
 
   return NextResponse.json({ roomId });
 }

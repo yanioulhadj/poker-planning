@@ -10,7 +10,7 @@ export async function POST(
   const { roomId } = await params;
   const { userId, baseUrl, email, apiToken, storyPointsField } = await request.json();
 
-  const room = getRoom(roomId);
+  const room = await getRoom(roomId);
   if (!room) {
     return NextResponse.json({ error: 'Salle introuvable' }, { status: 404 });
   }
@@ -36,7 +36,7 @@ export async function POST(
     return NextResponse.json({ error: field.error }, { status: 400 });
   }
 
-  setJiraConfig(roomId, userId, {
+  await setJiraConfig(roomId, userId, {
     ...config,
     storyPointsField: field.id,
     storyPointsFieldName: field.name,
@@ -57,7 +57,7 @@ export async function DELETE(
   const { roomId } = await params;
   const { userId } = await request.json();
 
-  if (!setJiraConfig(roomId, userId, null)) {
+  if (!(await setJiraConfig(roomId, userId, null))) {
     return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 });
   }
   return NextResponse.json({ success: true });

@@ -8,7 +8,7 @@ export async function POST(
   const { roomId } = await params;
   const { userId } = await request.json();
 
-  const success = revealVotes(roomId, userId);
+  const success = await revealVotes(roomId, userId);
   if (!success) {
     return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 });
   }
