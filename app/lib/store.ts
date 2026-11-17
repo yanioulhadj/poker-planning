@@ -17,6 +17,7 @@ interface RoomMeta {
   id: string;
   name: string;
   masterId: string;
+  masterIds?: string[];
   currentTicket: Ticket | null;
   revealed: boolean;
   createdAt: number;
@@ -42,7 +43,16 @@ async function touch(id: string): Promise<void> {
 
 async function getMeta(id: string): Promise<RoomMeta | null> {
   const raw = await kv.get(keys(id).meta);
-  return raw ? (JSON.parse(raw) as RoomMeta) : null;
+  if (!raw) return null;
+  const meta = JSON.parse(raw) as RoomMeta;
+  // Rooms créées avant le multi-maîtres : seul le créateur est maître
+  if (!meta.masterIds?.length) meta.masterIds = [meta.masterId];
+  return meta;
+}
+
+export function isRoomMaster(room: { masterIds?: string[]; masterId: string }, userId: string | undefined): boolean {
+  if (!userId) return false;
+  return (room.masterIds?.length ? room.masterIds : [room.masterId]).includes(userId);
 }
 
 async function saveMeta(meta: RoomMeta): Promise<void> {
@@ -56,7 +66,7 @@ async function updateAsMaster(
   update: (meta: RoomMeta) => void
 ): Promise<RoomMeta | null> {
   const meta = await getMeta(normalizeRoomId(roomId));
-  if (!meta || meta.masterId !== userId) return null;
+  if (!meta || !isRoomMaster(meta, userId)) return null;
   update(meta);
   await saveMeta(meta);
   await touch(meta.id);
@@ -70,6 +80,7 @@ export async function createRoom(id: string, name: string, master: Participant):
     id: normId,
     name,
     masterId: master.id,
+    masterIds: [master.id],
     currentTicket: null,
     revealed: false,
     createdAt: Date.now(),
@@ -102,7 +113,7 @@ export async function getRoom(roomId: string): Promise<Room | undefined> {
     participants[uid] = { ...p, lastSeen, connected: now - lastSeen <= DISCONNECT_THRESHOLD };
   }
 
-  return { ...meta, participants, votes };
+  return { ...meta, masterIds: meta.masterIds ?? [meta.masterId], participants, votes };
 }
 
 export async function joinRoom(roomId: string, participant: Participant): Promise<boolean> {
@@ -118,8 +129,9 @@ export async function joinRoom(roomId: string, participant: Participant): Promis
         ...existing,
         name: participant.name,
         avatar: participant.avatar || existing.avatar,
-        // Le maître garde son rôle ; les autres peuvent basculer participant ↔ observateur
-        role: existing.role === 'master' || participant.id === meta.masterId ? 'master' : participant.role,
+        // Rôle de vote uniquement (le statut de maître est géré à part, dans masterIds)
+        role: participant.role,
+        joinedAt: existing.joinedAt ?? Date.now(),
       }
     : participant;
 
@@ -170,6 +182,34 @@ export async function setJiraConfig(roomId: string, userId: string, config: Jira
   return !!(await updateAsMaster(roomId, userId, (m) => { m.jiraConfig = config; }));
 }
 
+/**
+ * Nomme ou retire un maître (action réservée aux maîtres).
+ * Il reste toujours au moins un maître dans la room.
+ */
+export async function setMaster(
+  roomId: string,
+  userId: string,
+  targetId: string,
+  makeMaster: boolean
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const room = await getRoom(roomId);
+  if (!room) return { ok: false, error: 'Salle introuvable' };
+  if (!isRoomMaster(room, userId)) return { ok: false, error: 'Seul un maître peut gérer les maîtres' };
+  if (!room.participants[targetId]) return { ok: false, error: 'Participant introuvable' };
+
+  const current = room.masterIds;
+  if (!makeMaster && current.includes(targetId) && current.length <= 1) {
+    return { ok: false, error: 'La salle doit garder au moins un maître' };
+  }
+  await updateAsMaster(roomId, userId, (m) => {
+    const ids = new Set(m.masterIds ?? [m.masterId]);
+    if (makeMaster) ids.add(targetId);
+    else ids.delete(targetId);
+    m.masterIds = [...ids];
+  });
+  return { ok: true };
+}
+
 /** Enregistre le dernier envoi de story points sur Jira (maître uniquement). */
 export async function setJiraSync(roomId: string, userId: string, sync: JiraSync): Promise<boolean> {
   return !!(await updateAsMaster(roomId, userId, (m) => { m.jiraSync = sync; }));
@@ -200,7 +240,7 @@ export async function getRoomState(roomId: string, requestingUserId?: string): P
   // Retire les participants absents depuis trop longtemps (jamais le maître)
   const now = Date.now();
   const stale = Object.values(room.participants)
-    .filter((p) => now - p.lastSeen > REMOVE_THRESHOLD && p.id !== room.masterId)
+    .filter((p) => now - p.lastSeen > REMOVE_THRESHOLD && !isRoomMaster(room, p.id))
     .map((p) => p.id);
   if (stale.length) {
     await Promise.all([kv.hdel(k.participants, ...stale), kv.hdel(k.votes, ...stale), kv.hdel(k.seen, ...stale)]);
@@ -224,7 +264,11 @@ export async function getRoomState(roomId: string, requestingUserId?: string): P
     id: room.id,
     name: room.name,
     masterId: room.masterId,
-    participants: Object.values(room.participants),
+    masterIds: room.masterIds,
+    // Les hash Redis ne garantissent pas l'ordre : tri par arrivée pour un affichage stable
+    participants: Object.values(room.participants).sort(
+      (a, b) => (a.joinedAt ?? Infinity) - (b.joinedAt ?? Infinity) || a.name.localeCompare(b.name)
+    ),
     votes,
     currentTicket: room.currentTicket,
     revealed: room.revealed,

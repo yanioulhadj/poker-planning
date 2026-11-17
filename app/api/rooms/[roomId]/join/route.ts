@@ -21,6 +21,7 @@ export async function POST(
     authType: authType || 'guest',
     role: role === 'observer' ? 'observer' : 'dev',
     lastSeen: Date.now(),
+    joinedAt: Date.now(),
     connected: true,
   };
 

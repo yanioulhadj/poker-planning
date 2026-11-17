@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRoom, setJiraSync } from '@/app/lib/store';
+import { getRoom, isRoomMaster, setJiraSync } from '@/app/lib/store';
 import { extractIssueKey, updateStoryPoints } from '@/app/lib/jira';
 
 export async function POST(
@@ -14,7 +14,7 @@ export async function POST(
     return NextResponse.json({ error: 'Salle introuvable' }, { status: 404 });
   }
 
-  if (room.masterId !== userId) {
+  if (!isRoomMaster(room, userId)) {
     return NextResponse.json({ error: 'Seul le maître de la salle peut synchroniser avec Jira' }, { status: 403 });
   }
 
