@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { JiraPublicInfo } from '@/app/lib/types';
 
 export const JIRA_STORAGE_KEY = 'poker-planning-jira-config';
 const DEFAULT_STORY_POINTS_FIELD = 'Story Points';
 const DEFAULT_GROOMING_SPRINT = 'Préparation grooming';
+const DEFAULT_TARGET_STATUS = 'Ready for dev';
 
 export interface StoredJiraConfig {
   baseUrl: string;
@@ -15,7 +16,20 @@ export interface StoredJiraConfig {
   groomingStatus?: string;
   projectKey?: string;
   groomingSprint?: string;
+  targetStatus?: string;
+  moveToNextSprint?: boolean;
+  targetSprintId?: number;
+  targetSprintName?: string;
 }
+
+interface SprintOption {
+  id: number;
+  name: string;
+  state: 'active' | 'future';
+}
+
+/** Valeur de la liste « sprint cible » : pas de déplacement, automatique, ou id du sprint */
+type SprintChoice = 'none' | 'auto' | number;
 
 export function loadStoredJiraConfig(): StoredJiraConfig | null {
   try {
@@ -53,13 +67,71 @@ export default function JiraSettings({ roomId, userId, current, onClose, onSaved
   const [groomingSprint, setGroomingSprint] = useState(
     current?.groomingSprint ?? stored?.groomingSprint ?? DEFAULT_GROOMING_SPRINT
   );
+  const [targetStatus, setTargetStatus] = useState(
+    current?.targetStatus ?? stored?.targetStatus ?? DEFAULT_TARGET_STATUS
+  );
+  const initial = current ?? stored;
+  const [sprintChoice, setSprintChoice] = useState<SprintChoice>(
+    initial?.moveToNextSprint === false ? 'none' : initial?.targetSprintId ?? 'auto'
+  );
+  const [sprintChoiceName, setSprintChoiceName] = useState(initial?.targetSprintName);
+  const [sprints, setSprints] = useState<SprintOption[] | null>(null);
+  const [sprintsLoading, setSprintsLoading] = useState(false);
+  const [sprintsError, setSprintsError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const loadSprints = async () => {
+    setSprintsLoading(true);
+    setSprintsError('');
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/jira/sprints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, baseUrl, email, apiToken, projectKey, groomingSprint, groomingStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSprintsError(data.error || 'Impossible de charger les sprints');
+        return;
+      }
+      setSprints(data.sprints);
+    } catch {
+      setSprintsError('Impossible de contacter le serveur');
+    } finally {
+      setSprintsLoading(false);
+    }
+  };
+
+  // Chargement à l'ouverture si des identifiants sont disponibles ; ensuite via « Actualiser »
+  useEffect(() => {
+    if (current || stored?.apiToken) loadSprints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSprintChange = (value: string) => {
+    if (value === 'none' || value === 'auto') {
+      setSprintChoice(value);
+      return;
+    }
+    const id = Number(value);
+    setSprintChoice(id);
+    setSprintChoiceName(sprints?.find((s) => s.id === id)?.name ?? sprintChoiceName);
+  };
+
+  const sprintMissing =
+    typeof sprintChoice === 'number' && sprints !== null && !sprints.some((s) => s.id === sprintChoice);
 
   const handleSave = async () => {
     setSaving(true);
     setError('');
-    const config = { baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint };
+    const config = {
+      baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint,
+      targetStatus,
+      moveToNextSprint: sprintChoice !== 'none',
+      targetSprintId: typeof sprintChoice === 'number' ? sprintChoice : undefined,
+      targetSprintName: typeof sprintChoice === 'number' ? sprintChoiceName : undefined,
+    };
     try {
       const res = await fetch(`/api/rooms/${roomId}/jira`, {
         method: 'POST',
@@ -210,6 +282,66 @@ export default function JiraSettings({ roomId, userId, current, onClose, onSaved
             La room affiche les tickets de ce sprint. Statuts (séparés par des virgules) et projet sont
             optionnels : laissez vide pour ne pas filtrer.
           </p>
+
+          <div className="space-y-3 border-t border-slate-100 pt-3">
+            <p className="text-xs font-semibold text-slate-700">Après l&apos;envoi du sizing</p>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Passer le ticket au statut</span>
+              <input
+                className={inputClass}
+                placeholder="Statut inchangé"
+                value={targetStatus}
+                onChange={(e) => setTargetStatus(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 flex items-center justify-between text-xs font-medium text-slate-600">
+                Déplacer le ticket dans le sprint
+                <button
+                  type="button"
+                  onClick={loadSprints}
+                  disabled={sprintsLoading}
+                  className="cursor-pointer font-normal text-indigo-500 hover:underline disabled:opacity-50"
+                >
+                  {sprintsLoading ? 'Chargement…' : sprints ? '↻ Actualiser' : 'Charger les sprints'}
+                </button>
+              </span>
+              <select
+                className={`${inputClass} cursor-pointer`}
+                value={String(sprintChoice)}
+                onChange={(e) => handleSprintChange(e.target.value)}
+              >
+                <option value="auto">Prochain sprint (automatique)</option>
+                <option value="none">Ne pas changer de sprint</option>
+                {sprints && sprints.length > 0 && (
+                  <optgroup label="Sprints du board">
+                    {sprints.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                        {s.state === 'active' ? ' (en cours)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {typeof sprintChoice === 'number' && (sprints === null || sprintMissing) && (
+                  <option value={sprintChoice}>
+                    {sprintChoiceName ?? `Sprint ${sprintChoice}`}
+                    {sprintMissing ? ' (terminé ou introuvable)' : ''}
+                  </option>
+                )}
+              </select>
+              <span className="mt-1 block text-[11px] text-slate-400">
+                {sprintsError ||
+                  (sprintMissing
+                    ? 'Ce sprint n’est plus actif ni futur : choisissez-en un autre.'
+                    : sprintChoice === 'auto'
+                      ? 'Automatique : premier sprint futur du board, hors sprint de préparation.'
+                      : sprintChoice === 'none'
+                        ? 'Le ticket reste dans son sprint actuel.'
+                        : '')}
+              </span>
+            </label>
+          </div>
         </div>
 
         <p className="mt-3 text-[11px] text-slate-400">

@@ -281,6 +281,10 @@ export async function getRoomState(roomId: string, requestingUserId?: string): P
           groomingStatus: room.jiraConfig.groomingStatus,
           projectKey: room.jiraConfig.projectKey,
           groomingSprint: room.jiraConfig.groomingSprint,
+          targetStatus: room.jiraConfig.targetStatus,
+          moveToNextSprint: room.jiraConfig.moveToNextSprint,
+          targetSprintId: room.jiraConfig.targetSprintId,
+          targetSprintName: room.jiraConfig.targetSprintName,
         }
       : null,
     jiraSync: room.jiraSync ?? null,

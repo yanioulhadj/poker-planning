@@ -8,7 +8,10 @@ export async function POST(
   { params }: { params: Promise<{ roomId: string }> }
 ) {
   const { roomId } = await params;
-  const { userId, baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint } = await request.json();
+  const {
+    userId, baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint,
+    targetStatus, moveToNextSprint, targetSprintId, targetSprintName,
+  } = await request.json();
 
   const room = await getRoom(roomId);
   if (!room) {
@@ -25,7 +28,13 @@ export async function POST(
     );
   }
 
-  const config = normalizeJiraConfig({ baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint });
+  const config = normalizeJiraConfig({
+    baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint,
+    targetStatus: typeof targetStatus === 'string' ? targetStatus : undefined,
+    moveToNextSprint: moveToNextSprint !== false,
+    targetSprintId: typeof targetSprintId === 'number' ? targetSprintId : undefined,
+    targetSprintName: typeof targetSprintName === 'string' ? targetSprintName : undefined,
+  });
   if (!config) {
     return NextResponse.json(
       { error: 'Champs invalides : URL (https://…), email et token API sont requis' },
