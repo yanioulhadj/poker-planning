@@ -38,7 +38,7 @@ export default function VoteResults({
   onChangeVote,
 }: VoteResultsProps) {
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ tone: 'ok' | 'warn' | 'error'; message: string } | null>(null);
   const [finalSizing, setFinalSizing] = useState('');
 
   const voteValues = Object.values(votes);
@@ -77,12 +77,18 @@ export default function VoteResults({
       });
       const data = await res.json();
       if (data.success) {
-        setSyncResult({ ok: true, message: `${data.points} pts envoyés sur ${data.issueKey}` });
+        const done = [
+          `${data.points} pts envoyés sur ${data.issueKey}`,
+          data.sprint && `déplacé dans « ${data.sprint} »`,
+          data.status && `statut « ${data.status} »`,
+        ].filter(Boolean).join(', ');
+        const warnings: string[] = data.warnings ?? [];
+        setSyncResult({ tone: warnings.length ? 'warn' : 'ok', message: [done, ...warnings].join(' — ') });
       } else {
-        setSyncResult({ ok: false, message: data.error || 'Erreur inconnue' });
+        setSyncResult({ tone: 'error', message: data.error || 'Erreur inconnue' });
       }
     } catch {
-      setSyncResult({ ok: false, message: 'Impossible de contacter le serveur' });
+      setSyncResult({ tone: 'error', message: 'Impossible de contacter le serveur' });
     } finally {
       setSyncing(false);
     }
@@ -212,7 +218,9 @@ export default function VoteResults({
             {syncResult && (
               <div
                 className={`rounded-lg p-2 text-center text-xs font-medium ${
-                  syncResult.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                  { ok: 'bg-emerald-50 text-emerald-700', warn: 'bg-amber-50 text-amber-700', error: 'bg-red-50 text-red-600' }[
+                    syncResult.tone
+                  ]
                 }`}
               >
                 {syncResult.message}

@@ -33,6 +33,13 @@ export interface JiraConfig {
   projectKey?: string;
   /** Nom du sprint contenant les tickets à groomer (optionnel, ex : Préparation grooming) */
   groomingSprint?: string;
+  /** Statut appliqué au ticket après l'envoi du sizing (vide = inchangé, ex : Nouveau) */
+  targetStatus?: string;
+  /** Déplacer le ticket dans le prochain sprint après l'envoi du sizing */
+  moveToNextSprint?: boolean;
+  /** Sprint cible choisi dans les paramètres (absent = premier sprint futur du board) */
+  targetSprintId?: number;
+  targetSprintName?: string;
 }
 
 /** Infos Jira exposées aux clients (jamais le token). */
@@ -44,6 +51,10 @@ export interface JiraPublicInfo {
   groomingStatus?: string;
   projectKey?: string;
   groomingSprint?: string;
+  targetStatus?: string;
+  moveToNextSprint?: boolean;
+  targetSprintId?: number;
+  targetSprintName?: string;
 }
 
 /** Ticket Jira affiché dans la section « Préparation grooming ». */
@@ -63,6 +74,10 @@ export interface JiraSync {
   points: number;
   ticketUrl: string;
   at: number;
+  /** Statut appliqué après l'envoi (si la transition a réussi) */
+  status?: string;
+  /** Sprint dans lequel le ticket a été déplacé */
+  sprint?: string;
 }
 
 export interface Room {

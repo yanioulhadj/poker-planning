@@ -78,6 +78,8 @@ export default function TicketPanel({ ticket, isMaster, onSetTicket, showIframe,
           {sync && sync.ticketUrl === ticket.url && (
             <p className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
               ✓ {sync.points} pts envoyés sur Jira ({sync.issueKey})
+              {sync.sprint && ` · ${sync.sprint}`}
+              {sync.status && ` · ${sync.status}`}
             </p>
           )}
           <div className="flex items-center gap-2">

@@ -48,7 +48,12 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     }
     if (syncAt && syncAt !== lastSyncAt.current && room.jiraSync) {
       lastSyncAt.current = syncAt;
-      setSyncToast(`${room.jiraSync.issueKey} mis à jour sur Jira : ${room.jiraSync.points} pts`);
+      const { issueKey, points, sprint, status } = room.jiraSync;
+      setSyncToast(
+        [`${issueKey} mis à jour sur Jira : ${points} pts`, sprint && `sprint « ${sprint} »`, status && `statut « ${status} »`]
+          .filter(Boolean)
+          .join(', ')
+      );
       const t = setTimeout(() => setSyncToast(null), 6000);
       return () => clearTimeout(t);
     }

@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getRoom, isRoomMaster, setJiraSync } from '@/app/lib/store';
-import { extractIssueKey, updateStoryPoints } from '@/app/lib/jira';
+import {
+  DEFAULT_TARGET_STATUS,
+  extractIssueKey,
+  moveIssueToNextSprint,
+  transitionIssue,
+  updateStoryPoints,
+} from '@/app/lib/jira';
 
 export async function POST(
   request: Request,
@@ -55,13 +61,34 @@ export async function POST(
     );
   }
 
+  // Les story points sont enregistrés : le déplacement de sprint et le changement de statut
+  // sont des étapes complémentaires, leurs échecs sont remontés comme avertissements.
+  const warnings: string[] = [];
+
+  let sprint: string | undefined;
+  if (config.moveToNextSprint !== false) {
+    const moved = await moveIssueToNextSprint(config, issueKey);
+    if (moved.success) sprint = moved.sprint;
+    else warnings.push(`Sprint non modifié : ${moved.error}`);
+  }
+
+  let status: string | undefined;
+  const targetStatus = config.targetStatus ?? DEFAULT_TARGET_STATUS;
+  if (targetStatus) {
+    const transitioned = await transitionIssue(config, issueKey, targetStatus);
+    if (transitioned.success) status = transitioned.status;
+    else warnings.push(`Statut non modifié : ${transitioned.error}`);
+  }
+
   // Mémorise l'envoi dans la room pour que tous les participants le voient
   await setJiraSync(roomId, userId, {
     issueKey,
     points,
     ticketUrl: room.currentTicket.url,
     at: Date.now(),
+    ...(status ? { status } : {}),
+    ...(sprint ? { sprint } : {}),
   });
 
-  return NextResponse.json({ success: true, issueKey, points });
+  return NextResponse.json({ success: true, issueKey, points, status, sprint, warnings });
 }

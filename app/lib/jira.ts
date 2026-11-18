@@ -15,6 +15,9 @@ export const DEFAULT_STORY_POINTS_FIELD = 'Story Points';
 
 export const DEFAULT_GROOMING_SPRINT = 'Préparation grooming';
 
+/** Statut appliqué au ticket une fois le sizing envoyé. */
+export const DEFAULT_TARGET_STATUS = 'Ready for dev';
+
 /** « Grooming, Elaboration » → ['Grooming', 'Elaboration'] */
 export function parseStatuses(value: string): string[] {
   return value.split(',').map((s) => s.trim()).filter(Boolean);
@@ -37,7 +40,17 @@ export function normalizeJiraConfig(input: Partial<JiraConfig>): JiraConfig | nu
   if (projectKey && !/^[A-Z][A-Z0-9_]+$/.test(projectKey)) return null;
   // Sans sprint ni statut, la recherche renverrait tout le Jira
   if (!groomingSprint && !groomingStatus) return null;
-  return { baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint };
+  // Non fourni → « Ready for dev » ; chaîne vide → statut inchangé
+  const targetStatus = input.targetStatus === undefined ? DEFAULT_TARGET_STATUS : input.targetStatus.trim();
+  const moveToNextSprint = input.moveToNextSprint !== false;
+  // Sprint choisi dans les paramètres (sinon : premier sprint futur, déterminé à l'envoi)
+  const targetSprintId =
+    moveToNextSprint && Number.isInteger(input.targetSprintId) ? input.targetSprintId : undefined;
+  const targetSprintName = targetSprintId != null ? input.targetSprintName?.trim() || undefined : undefined;
+  return {
+    baseUrl, email, apiToken, storyPointsField, groomingStatus, projectKey, groomingSprint,
+    targetStatus, moveToNextSprint, targetSprintId, targetSprintName,
+  };
 }
 
 function authHeader(config: JiraConfig): string {
@@ -266,6 +279,215 @@ export async function searchBacklog(
       };
     });
     return { success: true, issues };
+  } catch {
+    return { success: false, error: 'Impossible de joindre Jira' };
+  }
+}
+
+/** Extrait un message lisible d'une réponse d'erreur Jira. */
+async function jiraError(res: Response): Promise<string> {
+  const body = await res.text().catch(() => '');
+  try {
+    const json = JSON.parse(body);
+    if (json.errorMessages?.length) return json.errorMessages.join(', ');
+    if (json.errors && Object.keys(json.errors).length) return Object.values(json.errors).join(', ');
+  } catch {}
+  return `Jira API ${res.status}`;
+}
+
+const sameName = (a: string, b: string) =>
+  a.localeCompare(b, 'fr', { sensitivity: 'base' }) === 0;
+
+/**
+ * Passe le ticket dans le statut voulu (ex : « Nouveau ») via la transition
+ * du workflow qui y mène. Ne fait rien si le ticket y est déjà.
+ */
+export async function transitionIssue(
+  config: JiraConfig,
+  issueKey: string,
+  statusName: string
+): Promise<{ success: true; status: string } | { success: false; error: string }> {
+  const headers = { 'Authorization': authHeader(config), 'Accept': 'application/json' };
+  try {
+    const issueRes = await fetch(`${config.baseUrl}/rest/api/3/issue/${issueKey}?fields=status`, { headers });
+    if (issueRes.ok) {
+      const current: string | undefined = (await issueRes.json()).fields?.status?.name;
+      if (current && sameName(current, statusName)) return { success: true, status: current };
+    }
+
+    const res = await fetch(`${config.baseUrl}/rest/api/3/issue/${issueKey}/transitions`, { headers });
+    if (!res.ok) return { success: false, error: await jiraError(res) };
+    const { transitions = [] }: { transitions?: { id: string; name: string; to?: { name?: string } }[] } =
+      await res.json();
+
+    // Priorité au statut d'arrivée, puis au nom de la transition
+    const transition =
+      transitions.find((t) => t.to?.name && sameName(t.to.name, statusName)) ??
+      transitions.find((t) => sameName(t.name, statusName));
+    if (!transition) {
+      const available = [...new Set(transitions.map((t) => t.to?.name ?? t.name))].join(', ');
+      return {
+        success: false,
+        error: `Aucune transition vers « ${statusName} » depuis le statut actuel${available ? ` (possibles : ${available})` : ''}`,
+      };
+    }
+
+    const post = await fetch(`${config.baseUrl}/rest/api/3/issue/${issueKey}/transitions`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transition: { id: transition.id } }),
+    });
+    if (!post.ok) return { success: false, error: await jiraError(post) };
+    return { success: true, status: transition.to?.name ?? statusName };
+  } catch {
+    return { success: false, error: 'Impossible de joindre Jira' };
+  }
+}
+
+type AgileSprint = { id: number; name: string; state: string; originBoardId?: number; boardId?: number };
+
+export interface JiraSprint {
+  id: number;
+  name: string;
+  state: 'active' | 'future';
+}
+
+const sprintBoardId = (sprints: AgileSprint[]) =>
+  sprints.map((s) => s.boardId ?? s.originBoardId).find((id) => id != null);
+
+/** Identifiant du champ « Sprint » (variable selon l'instance). */
+async function findSprintField(config: JiraConfig, headers: HeadersInit): Promise<string | undefined> {
+  const res = await fetch(`${config.baseUrl}/rest/api/3/field`, { headers });
+  if (!res.ok) return undefined;
+  const fields: { id: string; schema?: { custom?: string } }[] = await res.json();
+  return fields.find((f) => f.schema?.custom === 'com.pyxis.greenhopper.jira:gh-sprint')?.id;
+}
+
+/** Board Scrum du projet configuré (ou du projet du ticket). */
+async function findProjectBoardId(config: JiraConfig, headers: HeadersInit, issueKey?: string) {
+  const project = config.projectKey ?? issueKey?.split('-')[0];
+  if (!project) return undefined;
+  const res = await fetch(
+    `${config.baseUrl}/rest/agile/1.0/board?type=scrum&projectKeyOrId=${encodeURIComponent(project)}`,
+    { headers }
+  );
+  if (!res.ok) return undefined;
+  return (await res.json()).values?.[0]?.id as number | undefined;
+}
+
+/**
+ * Board à utiliser : celui du sprint de préparation (déduit d'un de ses tickets),
+ * sinon le board Scrum du projet.
+ */
+async function findBoardId(config: JiraConfig, headers: HeadersInit, sprintField?: string) {
+  if (sprintField && config.groomingSprint) {
+    const res = await fetch(`${config.baseUrl}/rest/api/3/search/jql`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jql: `sprint = ${jqlString(config.groomingSprint)}`, maxResults: 1, fields: [sprintField] }),
+    });
+    if (res.ok) {
+      const value = (await res.json()).issues?.[0]?.fields?.[sprintField];
+      const id = Array.isArray(value) ? sprintBoardId(value) : undefined;
+      if (id != null) return id;
+    }
+  }
+  return findProjectBoardId(config, headers);
+}
+
+async function listBoardSprints(
+  config: JiraConfig,
+  headers: HeadersInit,
+  boardId: number
+): Promise<{ success: true; sprints: AgileSprint[] } | { success: false; error: string }> {
+  const sprints: AgileSprint[] = [];
+  let startAt = 0;
+  for (;;) {
+    const res = await fetch(
+      `${config.baseUrl}/rest/agile/1.0/board/${boardId}/sprint?state=active,future&startAt=${startAt}&maxResults=50`,
+      { headers }
+    );
+    if (!res.ok) return { success: false, error: await jiraError(res) };
+    const page: { values?: AgileSprint[]; isLast?: boolean } = await res.json();
+    sprints.push(...(page.values ?? []));
+    if (page.isLast !== false || !page.values?.length || sprints.length >= 500) break;
+    startAt += page.values.length;
+  }
+  return { success: true, sprints };
+}
+
+const isGroomingSprint = (config: JiraConfig, s: AgileSprint) =>
+  !!config.groomingSprint && sameName(s.name, config.groomingSprint);
+
+/** Sprints actifs et futurs du board (hors sprint de préparation), pour le choix dans les paramètres. */
+export async function listSprints(
+  config: JiraConfig
+): Promise<{ success: true; sprints: JiraSprint[] } | { success: false; error: string }> {
+  const headers = { 'Authorization': authHeader(config), 'Accept': 'application/json' };
+  try {
+    const boardId = await findBoardId(config, headers, await findSprintField(config, headers));
+    if (boardId == null) {
+      return { success: false, error: 'Aucun board Scrum trouvé (renseignez le projet dans la configuration)' };
+    }
+    const result = await listBoardSprints(config, headers, boardId);
+    if (!result.success) return result;
+    return {
+      success: true,
+      sprints: result.sprints
+        .filter((s) => !isGroomingSprint(config, s))
+        .map((s) => ({ id: s.id, name: s.name, state: s.state === 'active' ? 'active' : 'future' })),
+    };
+  } catch {
+    return { success: false, error: 'Impossible de joindre Jira' };
+  }
+}
+
+/**
+ * Déplace le ticket dans le sprint choisi dans les paramètres, ou à défaut dans le
+ * premier sprint « futur » du board (ordre du backlog), hors sprint de préparation
+ * et hors sprint actuel du ticket.
+ */
+export async function moveIssueToNextSprint(
+  config: JiraConfig,
+  issueKey: string
+): Promise<{ success: true; sprint: string } | { success: false; error: string }> {
+  const headers = { 'Authorization': authHeader(config), 'Accept': 'application/json' };
+  try {
+    let target: { id: number; name: string } | undefined =
+      config.targetSprintId != null
+        ? { id: config.targetSprintId, name: config.targetSprintName ?? `sprint ${config.targetSprintId}` }
+        : undefined;
+
+    if (!target) {
+      // Sprints actuels du ticket → board et sprints à exclure
+      const sprintField = await findSprintField(config, headers);
+      let issueSprints: AgileSprint[] = [];
+      if (sprintField) {
+        const issueRes = await fetch(`${config.baseUrl}/rest/api/3/issue/${issueKey}?fields=${sprintField}`, { headers });
+        if (issueRes.ok) {
+          const value = (await issueRes.json()).fields?.[sprintField];
+          if (Array.isArray(value)) issueSprints = value;
+        }
+      }
+      const boardId = sprintBoardId(issueSprints) ?? (await findProjectBoardId(config, headers, issueKey));
+      if (boardId == null) return { success: false, error: 'Aucun board Scrum trouvé pour ce ticket' };
+
+      const result = await listBoardSprints(config, headers, boardId);
+      if (!result.success) return result;
+      const currentIds = new Set(issueSprints.map((s) => s.id));
+      target = result.sprints.find(
+        (s) => s.state === 'future' && !currentIds.has(s.id) && !isGroomingSprint(config, s)
+      );
+      if (!target) return { success: false, error: 'Aucun prochain sprint (futur) trouvé sur le board' };
+    }
+
+    const move = await fetch(`${config.baseUrl}/rest/agile/1.0/sprint/${target.id}/issue`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issues: [issueKey] }),
+    });
+    if (!move.ok) return { success: false, error: await jiraError(move) };
+    return { success: true, sprint: target.name };
   } catch {
     return { success: false, error: 'Impossible de joindre Jira' };
   }
